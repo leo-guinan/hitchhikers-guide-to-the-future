@@ -118,9 +118,11 @@ Draft:
 >
 > The other half of the product is grounding. Writers should periodically connect their work to observable reality: what changed, what evidence appeared, what they now believe, and what would prove them wrong. Private thought is not valuable because it is private. It becomes valuable when access leads to better understanding, better decisions, or better work.
 >
-> We are building this in public, including the parts that fail. The first artifact is the platform charter: [repository URL]. The first experiment is whether readers will pay for access, create nodes of their own, and use the network to find thinking they could not have found from a normal feed.
+> We are building this in public, including the parts that fail. The first artifact is the platform charter: https://github.com/leo-guinan/hitchhikers-guide-to-the-future. The first experiment is whether readers will pay for access, create nodes of their own, and use the network to find thinking they could not have found from a normal feed.
 
-The repository URL must be inserted only after the public repository exists and has been verified anonymously.
+Repository: https://github.com/leo-guinan/hitchhikers-guide-to-the-future
+
+The repository URL was inserted only after the public repository existed and was verified anonymously.
 
 ## Receipt requirements for future updates
 
