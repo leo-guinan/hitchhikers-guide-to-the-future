@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090811">
+  <meta name="description" content="Enter the Hitchhiker's Guide to the Future.">
+  <title>Enter — The Hitchhiker's Guide to the Future</title>
+  <style>
+    :root {
+      --void: #090811;
+      --void-soft: #12101c;
+      --panel: rgba(22, 19, 31, .82);
+      --paper: #eee8d9;
+      --muted: #aaa3b1;
+      --gold: #d6ad5a;
+      --gold-bright: #f0d58f;
+      --ember: #e5663a;
+      --line: rgba(214, 173, 90, .28);
+      --line-soft: rgba(214, 173, 90, .14);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --serif: Georgia, 'Times New Roman', serif;
+    }
+    * { box-sizing: border-box; }
+    html { min-height: 100%; background: var(--void); }
+    body { min-height: 100vh; margin: 0; color: var(--paper); background: radial-gradient(circle at 78% 12%, rgba(102, 75, 150, .16), transparent 28rem), var(--void); font-family: var(--serif); }
+    body::before { position: fixed; inset: 0; pointer-events: none; content: ''; opacity: .28; background-image: radial-gradient(circle, rgba(238,232,217,.8) 0 1px, transparent 1.5px); background-size: 181px 157px; mix-blend-mode: screen; }
+    a { color: inherit; }
+    .shell { position: relative; max-width: 1080px; min-height: 100vh; margin: 0 auto; padding: 30px 42px 38px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+    .mark, nav, .eyebrow, label, .small, .status, .meta, button { font-family: var(--mono); }
+    .mark { color: var(--gold-bright); font-size: 11px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+    nav { display: flex; gap: 20px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+    nav a { color: var(--muted); text-decoration: none; }
+    nav a:hover, nav a:focus { color: var(--gold-bright); }
+    main { padding: clamp(58px, 10vh, 108px) 0 70px; }
+    .intro { max-width: 720px; margin-bottom: 48px; }
+    .eyebrow { margin: 0 0 20px; color: var(--gold); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(48px, 7vw, 84px); font-weight: 400; letter-spacing: -.055em; line-height: .95; }
+    h1 em { color: var(--gold-bright); font-style: normal; }
+    .lede { max-width: 620px; margin: 26px 0 0; color: var(--muted); font-size: 21px; line-height: 1.4; }
+    .gates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+    .gate { position: relative; border: 1px solid var(--line); background: linear-gradient(145deg, rgba(214,173,90,.07), var(--panel)); padding: 28px; }
+    .gate::before, .gate::after { position: absolute; width: 12px; height: 12px; content: ''; border-color: var(--gold); }
+    .gate::before { top: -1px; left: -1px; border-top: 2px solid; border-left: 2px solid; }
+    .gate::after { right: -1px; bottom: -1px; border-right: 2px solid; border-bottom: 2px solid; }
+    .gate-number { margin: 0 0 34px; color: var(--gold); font: 11px/1 var(--mono); letter-spacing: .16em; }
+    h2 { margin: 0; font-size: 31px; font-weight: 400; letter-spacing: -.025em; }
+    .gate-copy { min-height: 58px; margin: 14px 0 28px; color: var(--muted); font-size: 17px; line-height: 1.45; }
+    form { display: grid; gap: 14px; }
+    label { display: grid; gap: 8px; color: var(--gold); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    input { width: 100%; min-height: 46px; border: 1px solid var(--line-soft); border-radius: 0; outline: none; padding: 0 13px; color: var(--paper); background: rgba(9,8,17,.72); font: 15px/1 var(--serif); }
+    input:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(214,173,90,.12); }
+    button { min-height: 48px; border: 0; border-radius: 0; cursor: pointer; padding: 0 18px; color: var(--void); background: var(--gold-bright); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    button:hover, button:focus { background: #fff0b9; }
+    .benefits { display: grid; gap: 8px; margin: 0 0 24px; padding: 0; list-style: none; color: var(--paper); font: 11px/1.5 var(--mono); }
+    .benefits li::before { margin-right: 9px; color: var(--ember); content: '↳'; }
+    .price-line { margin: 22px 0 0; border-top: 1px solid var(--line-soft); padding-top: 15px; color: var(--muted); font: 10px/1.5 var(--mono); letter-spacing: .04em; }
+    .price-line strong { color: var(--paper); font-weight: 400; }
+    .status { min-height: 17px; margin: 2px 0 0; color: var(--gold); font-size: 10px; line-height: 1.5; }
+    .status.error { color: var(--ember); }
+    .notice { margin: 42px 0 0; border-left: 2px solid var(--ember); padding: 1px 0 1px 16px; color: var(--muted); font: 11px/1.6 var(--mono); }
+    .notice strong { color: var(--paper); font-weight: 400; }
+    footer { display: flex; justify-content: space-between; gap: 20px; color: rgba(170,163,177,.65); font: 10px/1.5 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+    footer span:last-child { color: var(--gold); }
+    @media (max-width: 760px) {
+      .shell { padding: 20px 16px 28px; }
+      header { align-items: flex-start; flex-direction: column; gap: 14px; }
+      nav { flex-wrap: wrap; gap: 12px 18px; }
+      main { padding: 58px 0 62px; }
+      .gates { grid-template-columns: 1fr; gap: 18px; }
+      .gate { padding: 23px; }
+      .gate-copy { min-height: 0; }
+      footer { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="mark">HGF / BOARDING PLATE</div>
+      <nav aria-label="Primary navigation">
+        <a href="/">Return to cover</a>
+        <a href="https://github.com/leo-guinan/hitchhikers-guide-to-the-future">Build log</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="headline">
+        <p class="eyebrow">The first door is always a choice</p>
+        <h1 id="headline">Enter the <em>guide.</em></h1>
+        <p class="lede">Return to a node you already joined, or pay the toll and begin a node of your own. The machine is being assembled in public.</p>
+      </section>
+
+      <section class="gates" aria-label="Account access options">
+        <article class="gate">
+          <p class="gate-number">GATE I / RETURNING TRAVELER</p>
+          <h2>Continue your journey</h2>
+          <p class="gate-copy">Use the email attached to your account. We will send a one-time code when the auth rail is connected.</p>
+          <form id="login-form">
+            <label for="login-email">Account email
+              <input id="login-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+            </label>
+            <button type="submit">Request sign-in code</button>
+            <p id="login-status" class="status" aria-live="polite"></p>
+          </form>
+          <p class="price-line"><strong>No password.</strong><br>One email. One temporary waymark.</p>
+        </article>
+
+        <article class="gate">
+          <p class="gate-number">GATE II / NEW TRAVELER</p>
+          <h2>Start your node</h2>
+          <p class="gate-copy">Join the founding membership, then claim permission to create one node of your own.</p>
+          <ul class="benefits">
+            <li>private access to the host node</li>
+            <li>node passport for one personal node</li>
+            <li>founding-network consideration</li>
+          </ul>
+          <form id="signup-form">
+            <label for="signup-email">Email for your account
+              <input id="signup-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+            </label>
+            <button type="submit">Continue to membership</button>
+            <p id="signup-status" class="status" aria-live="polite"></p>
+          </form>
+          <p class="price-line"><strong>Founding membership.</strong><br>Price and payment rail will be published before the first charge.</p>
+        </article>
+      </section>
+
+      <p class="notice"><strong>Boundary marker:</strong> this page is a real interface, not a fake checkout. No email is sent and no payment is taken until the backend, billing, and receipt paths are connected and tested.</p>
+    </main>
+
+    <footer><span>the hitchhiker's guide to the future</span><span>no guarantees · only waymarks</span></footer>
+  </div>
+  <script>
+    const announce = (id, message) => {
+      const node = document.getElementById(id);
+      node.textContent = message;
+      node.classList.remove('error');
+    };
+    document.getElementById('login-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      announce('login-status', 'Auth rail not connected yet. No email was sent.');
+    });
+    document.getElementById('signup-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      announce('signup-status', 'Billing rail not connected yet. No account or charge was created.');
+    });
+  </script>
+</body>
+</html>
