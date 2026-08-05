@@ -20,7 +20,7 @@ This is a new build. Existing work is source material for a controlled backfill,
 
 ## Current status
 
-Design and launch-contract stage. The decisions live in `docs/platform-charter.md`.
+Design and launch-contract stage. The decisions live in `docs/platform-charter.md`. The public thesis and grounding protocol live in `docs/build-in-public-university.md`.
 
 ## Non-negotiable boundary
 
