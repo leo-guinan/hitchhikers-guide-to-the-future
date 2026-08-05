@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090811">
+  <meta name="description" content="A private diary, a public guide, and a network of personal futures.">
+  <title>The Hitchhiker's Guide to the Future</title>
+  <style>
+    :root {
+      --void: #090811;
+      --void-soft: #11101b;
+      --paper: #eee8d9;
+      --muted: #aaa3b1;
+      --gold: #d6ad5a;
+      --gold-bright: #f0d58f;
+      --ember: #e5663a;
+      --line: rgba(214, 173, 90, .27);
+      --faint: rgba(214, 173, 90, .08);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --serif: Georgia, 'Times New Roman', serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-height: 100%; background: var(--void); }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--paper);
+      background:
+        radial-gradient(circle at 73% 18%, rgba(104, 79, 152, .18), transparent 26rem),
+        radial-gradient(circle at 14% 84%, rgba(229, 102, 58, .07), transparent 25rem),
+        var(--void);
+      font-family: var(--serif);
+    }
+
+    body::before {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      content: '';
+      opacity: .34;
+      background-image:
+        radial-gradient(circle, rgba(238, 232, 217, .8) 0 1px, transparent 1.5px),
+        radial-gradient(circle, rgba(214, 173, 90, .65) 0 1px, transparent 1.4px);
+      background-position: 7% 13%, 63% 72%;
+      background-size: 173px 149px, 227px 211px;
+      mix-blend-mode: screen;
+    }
+
+    a { color: inherit; }
+    .shell { position: relative; max-width: 1160px; min-height: 100vh; margin: 0 auto; padding: 30px 42px 42px; display: flex; flex-direction: column; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 24px; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+    .mark { color: var(--gold-bright); font: 700 11px/1.2 var(--mono); letter-spacing: .15em; text-transform: uppercase; }
+    nav { display: flex; gap: 22px; font: 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    nav a { color: var(--muted); text-decoration: none; }
+    nav a:hover, nav a:focus { color: var(--gold-bright); }
+
+    main { flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(280px, .72fr); gap: clamp(42px, 8vw, 124px); align-items: center; padding: clamp(70px, 12vh, 132px) 0 100px; }
+    .eyebrow { margin: 0 0 24px; color: var(--gold); font: 11px/1.5 var(--mono); letter-spacing: .16em; text-transform: uppercase; }
+    h1 { max-width: 760px; margin: 0; color: var(--paper); font-size: clamp(52px, 8vw, 104px); font-weight: 400; letter-spacing: -.055em; line-height: .92; }
+    h1 em { color: var(--gold-bright); font-style: normal; }
+    .lede { max-width: 610px; margin: 34px 0 0; color: var(--muted); font-size: clamp(20px, 2.1vw, 27px); line-height: 1.35; }
+
+    .instrument { position: relative; min-height: 335px; border: 1px solid var(--line); background: linear-gradient(145deg, rgba(214,173,90,.07), rgba(17,16,27,.72)); padding: 28px; }
+    .instrument::before, .instrument::after { position: absolute; width: 14px; height: 14px; content: ''; border-color: var(--gold); }
+    .instrument::before { top: -1px; left: -1px; border-top: 2px solid; border-left: 2px solid; }
+    .instrument::after { right: -1px; bottom: -1px; border-right: 2px solid; border-bottom: 2px solid; }
+    .instrument-label { display: flex; justify-content: space-between; color: var(--muted); font: 10px/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .orbit { position: relative; width: min(270px, 80vw); aspect-ratio: 1; margin: 32px auto 20px; border: 1px solid rgba(214,173,90,.25); border-radius: 50%; }
+    .orbit::before, .orbit::after { position: absolute; inset: 13%; border: 1px solid rgba(214,173,90,.17); border-radius: 50%; content: ''; transform: rotate(62deg) scaleX(1.7); }
+    .orbit::after { inset: 23%; transform: rotate(-38deg) scaleX(1.45); }
+    .planet { position: absolute; top: 17%; right: 15%; width: 7px; height: 7px; border-radius: 50%; background: var(--gold-bright); box-shadow: 0 0 16px 4px rgba(240,213,143,.45); }
+    .core { position: absolute; top: 50%; left: 50%; width: 30px; height: 30px; border: 1px solid var(--ember); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 35px rgba(229,102,58,.25); }
+    .core::after { position: absolute; inset: 8px; border-radius: 50%; background: var(--ember); content: ''; }
+    .caption { margin: 0; color: var(--gold); text-align: center; font: 10px/1.5 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+
+    .cta-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 18px 28px; margin-top: 48px; border-top: 1px solid var(--line); padding-top: 22px; }
+    .cta { display: inline-flex; align-items: center; min-height: 48px; padding: 0 21px; color: var(--void); background: var(--gold-bright); text-decoration: none; font: 700 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .cta:hover, .cta:focus { background: #fff0b9; }
+    .price { color: var(--muted); font: 11px/1.5 var(--mono); letter-spacing: .04em; }
+    .price strong { color: var(--paper); font-weight: 400; }
+
+    footer { display: flex; justify-content: space-between; gap: 24px; color: rgba(170,163,177,.65); font: 10px/1.5 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+    footer span:last-child { color: var(--gold); }
+
+    @media (max-width: 760px) {
+      .shell { padding: 20px 16px 28px; }
+      header { align-items: flex-start; flex-direction: column; gap: 14px; }
+      nav { flex-wrap: wrap; gap: 12px 18px; }
+      main { display: block; padding: 68px 0 72px; }
+      h1 { font-size: clamp(54px, 16vw, 78px); }
+      .lede { margin-top: 26px; font-size: 21px; }
+      .instrument { min-height: 300px; margin-top: 60px; padding: 22px; }
+      .cta-row { align-items: stretch; flex-direction: column; gap: 15px; }
+      .cta { justify-content: center; width: 100%; }
+      footer { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="mark">HGF / NODE 001</div>
+      <nav aria-label="Primary navigation">
+        <a href="https://github.com/leo-guinan/hitchhikers-guide-to-the-future">Build log</a>
+        <a href="https://github.com/leo-guinan/hitchhikers-guide-to-the-future/blob/main/docs/build-in-public-university.md">Thesis</a>
+      </nav>
+    </header>
+
+    <main>
+      <section aria-labelledby="headline">
+        <p class="eyebrow">A private diary for public futures</p>
+        <h1 id="headline">Bring your <em>future</em> closer.</h1>
+        <p class="lede">Write what you are trying to understand. Let the right people pay to enter. Connect the thinking to reality before it turns into mythology.</p>
+        <div class="cta-row">
+          <a class="cta" href="https://github.com/leo-guinan/hitchhikers-guide-to-the-future">Enter the build log&nbsp; →</a>
+          <div class="price"><strong>Private thought, properly valued.</strong><br>the first node is being built in public</div>
+        </div>
+      </section>
+
+      <aside class="instrument" aria-label="Node instrument">
+        <div class="instrument-label"><span>WAYMARK / 001</span><span>ONLINE</span></div>
+        <div class="orbit" aria-hidden="true"><div class="planet"></div><div class="core"></div></div>
+        <p class="caption">Every entry is a coordinate<br>for the person you are becoming.</p>
+      </aside>
+    </main>
+
+    <footer><span>the hitchhiker's guide to the future</span><span>no guarantees · only waymarks</span></footer>
+  </div>
+</body>
+</html>
