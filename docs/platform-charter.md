@@ -12,7 +12,9 @@ The promise is not that writing predicts the future. The promise is that repeate
 - **Node** — one traveler's publication, diary, pricing, and access policy.
 - **Public guide** — the node's public newsletter/blog entries.
 - **Private diary** — entries visible only to the writer by default.
-- **Membership** — a paid recurring entitlement to one node's private diary, subject to that node's policy.
+- **Membership** — a paid recurring entitlement. A membership in a host node may also grant the right to create a node, if the host's offer includes that capability.
+- **Founding invitation** — a gifted or explicitly granted membership used to seed a trusted first cohort.
+- **Node passport** — the capability to create and operate a node. It is not the same thing as access to every other node's private diary.
 - **Atlas** — the semantic search surface over explicitly participating nodes.
 - **Endpoint** — the access boundary for a node. A traveler enters a node through its membership endpoint; Atlas access is another entitlement, not an accidental side effect.
 - **Waymark** — an immutable publication/version receipt for an entry.
@@ -32,10 +34,12 @@ The promise is not that writing predicts the future. The promise is that repeate
 ### Commerce
 
 8. Each node has an owner-set price and billing cadence.
-9. Revenue belongs to the node owner, less payment, platform, tax, refund, and dispute costs.
-10. Membership access is entitlement-based, not client-side boolean state.
-11. The platform must be able to suspend search, publication, and billing independently.
-12. No launch promise depends on every node having a different payment rail. The first cohort uses one billing provider and one currency unless an experiment proves otherwise.
+9. A membership offer may include a node passport: permission to create one node and operate it under platform rules.
+10. A node passport does not automatically grant access to the private diaries of other nodes.
+11. Revenue belongs to the node owner, less payment, platform, tax, refund, and dispute costs.
+12. Membership access is entitlement-based, not client-side boolean state.
+13. The platform must be able to suspend node creation, search, publication, and billing independently.
+14. No launch promise depends on every node having a different payment rail. The first cohort uses one billing provider and one currency unless an experiment proves otherwise.
 
 ### Provenance and accountability
 
@@ -87,15 +91,50 @@ A membership creates a time-bounded entitlement with:
 
 The API re-evaluates the grant server-side for every private read and search request. The browser is not trusted to enforce a paywall.
 
-### D4 — Separate node membership from Atlas membership
+### D4 — A paid host membership can grant a node passport
 
-**Decision:** A reader can subscribe to a node without joining the Atlas, and can join the Atlas only under a defined network-access plan.
+**Decision:** Membership in the first host node can include permission to create one personal node. This is the network's primary growth loop: a traveler enters through a valuable node, then becomes a potential source of another valuable node.
 
-**Launch simplification:** The first cohort may include Atlas access as a platform-level plan or invite-only entitlement. We should not build a marketplace of hundreds of independent micro-checkouts before proving that network search has repeat use.
+**Entitlement shape:**
 
-**Longer-term experiment:** node owners can choose whether Atlas access is included, excluded, or priced as an add-on. This is an experiment, not a launch invariant.
+- `node_read` — access to the host node's private corpus, subject to host policy;
+- `node_passport` — permission to create one node;
+- `node_operate` — permission to edit, publish, price, and configure the created node;
+- `atlas_read` — permission to search the network, if separately granted;
+- `atlas_contribute` — permission for the node's opted-in corpora to be indexed.
 
-### D5 — Writer-controlled search exposure has three independent switches
+The passport is consumed once at node creation. The resulting node remains owned and operated by its creator while the creator's membership remains in good standing, subject to a defined grace period and export path. We should not silently delete a person's intellectual archive because a card failed.
+
+**Open commercial question:** whether the passport is permanently retained after creation or requires an active host membership. The first cohort should use a 30-day grace period after cancellation and make the rule explicit at checkout.
+
+### D5 — Separate node membership from Atlas membership
+
+**Decision:** A reader can subscribe to a node, receive a node passport, and still not receive Atlas access. Atlas search remains a separate entitlement.
+
+**Launch simplification:** Leo's host membership can include Atlas access for the founding cohort as an explicit benefit, while gifted founding invitations can be granted the same or a narrower capability bundle. We should not build a marketplace of hundreds of independent micro-checkouts before proving that network search has repeat use.
+
+**Longer-term experiment:** node owners can choose whether their own membership includes Atlas access, node-passport rights, both, or neither. This is an experiment, not a launch invariant.
+
+### D6 — Seed the network deliberately, not indiscriminately
+
+**Decision:** The first cohort is a curated network of valuable, somewhat prolific thinkers whose writing adds distinct dimensions of observation. It is not an open signup funnel at launch.
+
+The seed cohort should be selected for:
+
+- demonstrated ability to produce sustained original writing;
+- distinct subject position or lived context;
+- willingness to make some thinking legible to others;
+- comfort with explicit privacy and pricing boundaries;
+- capacity to maintain a node rather than merely claim one;
+- evidence of reciprocal intellectual value, not just audience size.
+
+Leo may gift founding invitations based on prior relationships. Every gifted invitation still creates a normal account, membership, policy record, and receipt. Relationship is the reason for the grant; it is not an authorization bypass.
+
+The network's purpose is dimensional coverage, not ideological agreement. Cohort selection should record the intended dimension and the reason for inclusion, while avoiding a score that pretends human significance can be ranked cleanly.
+
+**Seed-cohort artifact:** maintain a private invitation ledger containing invitee, relationship basis, intended dimension, capability bundle, inviter, date, and review outcome. Do not publish private relationship notes.
+
+### D7 — Writer-controlled search exposure has three independent switches
 
 For every node:
 
@@ -105,7 +144,7 @@ For every node:
 
 Default: all false for private material; public Atlas inclusion may be suggested during onboarding but requires confirmation.
 
-### D6 — Use Stripe Connect for money movement, but hide it behind a billing module
+### D8 — Use Stripe Connect for money movement, but hide it behind a billing module
 
 **Decision:** Stripe Connect Express or equivalent connected-account model, with platform fees and destination transfers represented in our own ledger.
 
@@ -113,7 +152,7 @@ Default: all false for private material; public Atlas inclusion may be suggested
 
 **Launch scope:** one currency, monthly memberships, platform-managed refunds and disputes, owner payout dashboard after reconciliation exists.
 
-### D7 — Custom domains are a first-class node property
+### D9 — Custom domains are a first-class node property
 
 **Decision:** Every node has a platform slug immediately. Custom domains are supported through a domain-verification record and an edge routing layer.
 
@@ -167,6 +206,17 @@ Membership
   id, traveler_id, node_id, provider_customer_id, status
   current_period_end, created_at, canceled_at
 
+CapabilityGrant
+  id, traveler_id, source_node_id, capability, target_node_id
+  source, valid_from, valid_until, revoked_at, policy_version
+
+NodePassport
+  id, traveler_id, grant_id, status, consumed_at, created_node_id
+
+FoundingInvitation
+  id, inviter_id, invitee_id, capability_bundle, relationship_basis
+  intended_dimension, status, created_at, accepted_at
+
 Entitlement
   id, traveler_id, node_id, scope, corpus_class
   valid_from, valid_until, revoked_at, policy_version
@@ -207,6 +257,14 @@ The model intentionally keeps canonical content, derived search data, commerce s
 - domain settings;
 - receipts/audit view.
 
+### Founding member
+
+- membership and capability bundle;
+- node-passport claim/create flow;
+- network policy acknowledgment;
+- Atlas participation controls;
+- invitation status, if granted invitation rights later.
+
 ### Member
 
 - node access status;
@@ -244,11 +302,15 @@ Custom domains resolve to the node's public surface and authenticated app routes
 
 ## 8. First cohort experiment
 
-Cohort target: 10–20 writers, invited members, one billing provider, one primary currency, one Atlas policy configuration at a time.
+Cohort target: 10–20 writers, beginning with Leo's host node plus a curated set of paid or gifted founding members. Each accepted founding member may create one node if their capability bundle includes a node passport. Use one billing provider, one primary currency, and one Atlas policy configuration at a time.
 
 Measure before expanding:
 
 - writer conversion from first private entry to setting a price;
+- membership-to-node conversion: percentage of members who claim their passport and create a node;
+- node survival: percentage of created nodes with at least three entries in 30 days;
+- dimension coverage: qualitative map of distinct domains, contexts, and methods represented;
+- gifted-member activation and retention versus paid-member activation;
 - percentage of writers who publish at least one public entry;
 - paid conversion and 30-day retention;
 - private entries per paid member per week;
@@ -259,12 +321,14 @@ Measure before expanding:
 - payment reconciliation exceptions;
 - support burden per node.
 
-The central falsifier: if people will pay for a node but do not use Atlas, the network is a garnish, not the product. If Atlas searches are frequent but result opens are low, retrieval or trust is broken. If writers refuse private opt-in, the default architecture is still correct; the market has answered a different question.
+The central falsifiers: if members value Leo's node but do not claim or use their own node, node creation is a decorative perk; if the resulting nodes do not produce sustained writing, the network is not gaining dimensions; if people will pay for a node but do not use Atlas, the network is a garnish, not the product. If Atlas searches are frequent but result opens are low, retrieval or trust is broken. If writers refuse private opt-in, the default architecture is still correct; the market has answered a different question.
 
 ## 9. Explicit non-goals for launch
 
 - no token or blockchain settlement;
 - no arbitrary peer-to-peer pricing rails;
+- no automatic right to create unlimited nodes;
+- no public ranking of thinkers or forced "dimension" taxonomy;
 - no global model training on private diaries;
 - no autonomous publication or autonomous price changes;
 - no public leaderboard of private-thought value;
@@ -274,12 +338,13 @@ The central falsifier: if people will pay for a node but do not use Atlas, the n
 
 ## 10. Open decisions that need Leo's sign-off
 
-1. **Atlas commercial shape:** platform-level Atlas membership for the cohort, or pay-per-node Atlas add-on from day one?
-2. **Private search result shape:** full text for members of a node; what, if anything, may non-members see from opted-in private corpora?
-3. **Writer payout:** immediate transfer after payment, or delayed payout after refund/dispute window and reconciliation?
-4. **Identity:** email magic link first, or social login in the first cohort?
-5. **Backfill boundary:** which prior corpus is in scope, and what categories are automatically excluded before human review?
-6. **First deployment rail:** existing infrastructure or a fresh Cloudflare/VPS deployment? This changes domain and operational work.
+1. **Passport persistence:** does a created node remain operable permanently after the host membership ends, or only after a grace period? Recommendation: 30-day grace period, then read-only/export until reactivation.
+2. **Atlas commercial shape:** include Atlas in Leo's host membership for the founding cohort, or keep it invite-only at first? Recommendation: include it for the curated founding cohort, but retain a separate capability flag.
+3. **Private search result shape:** full text for members of a node; what, if anything, may non-members see from opted-in private corpora?
+4. **Writer payout:** immediate transfer after payment, or delayed payout after refund/dispute window and reconciliation?
+5. **Identity:** email magic link first, or social login in the first cohort?
+6. **Backfill boundary:** which prior corpus is in scope, and what categories are automatically excluded before human review?
+7. **First deployment rail:** existing infrastructure or a fresh Cloudflare/VPS deployment? This changes domain and operational work.
 
 ## 11. Build order
 

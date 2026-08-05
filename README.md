@@ -7,6 +7,8 @@ This repository is the clean-build home for the platform:
 - a private diary for each writer;
 - a public newsletter/blog;
 - a paid membership that grants access to that writer's private diary;
+- a node passport, granted by a host membership, that lets a traveler create one node of their own;
+- a curated founding cohort seeded through paid memberships and gifted invitations;
 - an opt-in semantic network that lets eligible members search across participating nodes;
 - custom domains for each writer.
 
