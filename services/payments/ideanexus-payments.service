@@ -1,0 +1,23 @@
+[Unit]
+Description=Idea Nexus Ventures reusable payments service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ideanexus-payments
+EnvironmentFile=/etc/ideanexus-payments/payments.env
+Environment=PAYMENTS_HOST=127.0.0.1
+Environment=PAYMENTS_PORT=8845
+ExecStart=/usr/bin/python3 /opt/ideanexus-payments/app.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/ideanexus-payments
+
+[Install]
+WantedBy=multi-user.target

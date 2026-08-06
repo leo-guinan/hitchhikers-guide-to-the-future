@@ -96,14 +96,9 @@
         <article class="gate">
           <p class="gate-number">GATE I / RETURNING TRAVELER</p>
           <h2>Continue your journey</h2>
-          <p class="gate-copy">Use the email attached to your account. We will send a one-time code when the auth rail is connected.</p>
-          <form id="login-form">
-            <label for="login-email">Account email
-              <input id="login-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
-            </label>
-            <button type="submit">Request sign-in code</button>
-            <p id="login-status" class="status" aria-live="polite"></p>
-          </form>
+          <p class="gate-copy">Use the Idea Nexus organizational auth rail. It keeps identity, workspace, and capability boundaries in one place.</p>
+          <a class="button" id="auth-button" href="https://auth.ideanexusventures.com/login?workspace_id=org%3Aidea-nexus&amp;property_id=x%3Amarvin-panics&amp;return_to=https%3A%2F%2Fhitchhikersguidetothefuture.com%2Fenter%2F">Continue with organizational auth&nbsp; →</a>
+          <p id="login-status" class="status" aria-live="polite"></p>
           <p class="price-line"><strong>No password.</strong><br>One email. One temporary waymark.</p>
         </article>
 
@@ -133,19 +128,46 @@
     <footer><span>the hitchhiker's guide to the future</span><span>no guarantees · only waymarks</span></footer>
   </div>
   <script>
-    const announce = (id, message) => {
+    const announce = (id, message, error = false) => {
       const node = document.getElementById(id);
       node.textContent = message;
-      node.classList.remove('error');
+      node.classList.toggle('error', error);
     };
-    document.getElementById('login-form').addEventListener('submit', (event) => {
+    const params = new URLSearchParams(location.search);
+    const handoff = params.get('preview_handoff');
+    if (handoff) {
+      fetch('https://auth.ideanexusventures.com/preview/redeem?handoff=' + encodeURIComponent(handoff), { method: 'POST' })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error('handoff rejected')))
+        .then(() => announce('login-status', 'Identity handoff received. The private session boundary is ready for the application layer.'))
+        .catch(() => announce('login-status', 'Identity handoff could not be redeemed. No session was created.', true));
+      history.replaceState({}, '', location.pathname);
+    }
+    document.getElementById('signup-form').addEventListener('submit', async (event) => {
       event.preventDefault();
-      announce('login-status', 'Auth rail not connected yet. No email was sent.');
+      const email = document.getElementById('signup-email').value.trim();
+      announce('signup-status', 'Checking the membership rail…');
+      try {
+        const response = await fetch('/api/payments/checkout', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            node_id: 'hgf:guide',
+            subject_id: email,
+            customer_email: email,
+            price_id: '',
+            success_url: location.origin + '/enter/?checkout=success',
+            cancel_url: location.origin + '/enter/?checkout=cancelled'
+          })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'membership rail unavailable');
+        location.href = result.checkout.url;
+      } catch (error) {
+        announce('signup-status', error.message + '. No account or charge was created.', true);
+      }
     });
-    document.getElementById('signup-form').addEventListener('submit', (event) => {
-      event.preventDefault();
-      announce('signup-status', 'Billing rail not connected yet. No account or charge was created.');
-    });
+    if (params.get('checkout') === 'success') announce('signup-status', 'Checkout returned. Membership receipt verification is the next gate.');
+    if (params.get('checkout') === 'cancelled') announce('signup-status', 'Checkout cancelled. No charge was created.');
   </script>
 </body>
 </html>
