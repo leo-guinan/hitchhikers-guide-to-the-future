@@ -1,0 +1,30 @@
+{
+  "mode": "dry_run",
+  "market": "proximity-market-cohort-01",
+  "open_until": "2026-08-13T23:59:59Z",
+  "lock_until": "2026-10-31T23:59:59Z",
+  "central_revenue_treasury": {
+    "status": "NOT_CONFIGURED",
+    "custody": "multisig_required",
+    "address": null
+  },
+  "chains": {
+    "base": {"network": "Base", "wallet_address": null, "status": "NOT_CONFIGURED"},
+    "ethereum": {"network": "Ethereum", "wallet_address": null, "status": "NOT_CONFIGURED"},
+    "solana": {"network": "Solana", "wallet_address": null, "status": "NOT_CONFIGURED"},
+    "polygon": {"network": "Polygon", "wallet_address": null, "status": "NOT_CONFIGURED"}
+  },
+  "confirmation_policy": {
+    "base": null,
+    "ethereum": null,
+    "solana": null,
+    "polygon": null
+  },
+  "limits": {
+    "max_single_transfer_usd": null,
+    "max_daily_transfer_usd": null,
+    "max_experiment_spend_usd": null,
+    "requires_human_approval": true
+  },
+  "github_receipt_repo": null
+}

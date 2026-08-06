@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Revenue control-plane receipt",
+  "type": "object",
+  "required": ["receipt_type", "receipt_id", "mode", "chain", "tx_hash", "amount", "asset", "observed_at", "status"],
+  "properties": {
+    "receipt_type": {"enum": ["deposit", "revenue_transfer", "experiment_spend"]},
+    "receipt_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "mode": {"enum": ["dry_run", "observed"]},
+    "chain": {"enum": ["base", "ethereum", "solana", "polygon"]},
+    "tx_hash": {"type": "string", "minLength": 8},
+    "amount": {"type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?$"},
+    "asset": {"type": "string", "minLength": 1},
+    "wallet_address": {"type": ["string", "null"]},
+    "treasury_address": {"type": ["string", "null"]},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "confirmations": {"type": ["integer", "null"], "minimum": 0},
+    "status": {"enum": ["observed", "confirmed", "proposed", "executed", "rejected", "superseded"]},
+    "proposal_id": {"type": ["string", "null"]},
+    "github_receipt_url": {"type": ["string", "null"]}
+  },
+  "additionalProperties": false
+}

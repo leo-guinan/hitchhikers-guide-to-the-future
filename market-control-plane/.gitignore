@@ -1,0 +1,9 @@
+# Runtime-only custody and receipt data
+config/chains.json
+config/*.local.json
+receipts/
+reports/
+*.env
+*.key
+*.pem
+*.seed
