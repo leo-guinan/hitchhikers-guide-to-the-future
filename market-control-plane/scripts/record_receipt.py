@@ -8,7 +8,7 @@ import argparse, hashlib, json
 from datetime import datetime, timezone
 from pathlib import Path
 
-CHAINS = {"base", "ethereum", "solana", "polygon"}
+CHAINS = {"base", "ethereum", "solana", "polygon", "quai"}
 TYPES = {"deposit", "revenue_transfer", "experiment_spend"}
 STATUSES = {"observed", "confirmed", "proposed", "executed", "rejected", "superseded"}
 

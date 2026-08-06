@@ -13,7 +13,7 @@ It is deliberately fail-closed:
 
 ## Chain slots
 
-The initial market UI exposes Base, Ethereum, Solana, and Polygon. Each has a wallet slot in `config/chains.example.json`. Replace the placeholder addresses only through a private deployment configuration after custody review. Never commit private keys.
+The initial market UI exposes Base, Ethereum, Solana, Polygon, and Quai. Quai is represented as its own adapter slot for Cyprus-1 (mainnet chain ID 9, `https://rpc.quai.network/cyprus1`). Quai uses shard-scoped Quai/Qi address rules; an ordinary EVM address validator is not sufficient. Replace the placeholder addresses only through a private deployment configuration after custody review. Never commit private keys.
 
 ## Lifecycle
 

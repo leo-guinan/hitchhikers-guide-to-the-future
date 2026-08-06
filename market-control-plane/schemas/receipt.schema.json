@@ -7,7 +7,7 @@
     "receipt_type": {"enum": ["deposit", "revenue_transfer", "experiment_spend"]},
     "receipt_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "mode": {"enum": ["dry_run", "observed"]},
-    "chain": {"enum": ["base", "ethereum", "solana", "polygon"]},
+    "chain": {"enum": ["base", "ethereum", "solana", "polygon", "quai"]},
     "tx_hash": {"type": "string", "minLength": 8},
     "amount": {"type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?$"},
     "asset": {"type": "string", "minLength": 1},

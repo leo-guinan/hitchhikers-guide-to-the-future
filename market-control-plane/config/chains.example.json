@@ -12,13 +12,15 @@
     "base": {"network": "Base", "wallet_address": null, "status": "NOT_CONFIGURED"},
     "ethereum": {"network": "Ethereum", "wallet_address": null, "status": "NOT_CONFIGURED"},
     "solana": {"network": "Solana", "wallet_address": null, "status": "NOT_CONFIGURED"},
-    "polygon": {"network": "Polygon", "wallet_address": null, "status": "NOT_CONFIGURED"}
+    "polygon": {"network": "Polygon", "wallet_address": null, "status": "NOT_CONFIGURED"},
+    "quai": {"network": "Quai Cyprus-1", "chain_id": 9, "rpc_url": "https://rpc.quai.network/cyprus1", "ledger": "Quai account ledger", "wallet_address": null, "status": "NOT_CONFIGURED"}
   },
   "confirmation_policy": {
     "base": null,
     "ethereum": null,
     "solana": null,
-    "polygon": null
+    "polygon": null,
+    "quai": null
   },
   "limits": {
     "max_single_transfer_usd": null,
