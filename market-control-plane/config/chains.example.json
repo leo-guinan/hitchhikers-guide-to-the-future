@@ -9,11 +9,11 @@
     "address": null
   },
   "chains": {
-    "base": {"network": "Base", "wallet_address": null, "status": "NOT_CONFIGURED"},
-    "ethereum": {"network": "Ethereum", "wallet_address": null, "status": "NOT_CONFIGURED"},
-    "solana": {"network": "Solana", "wallet_address": null, "status": "NOT_CONFIGURED"},
-    "polygon": {"network": "Polygon", "wallet_address": null, "status": "NOT_CONFIGURED"},
-    "quai": {"network": "Quai Cyprus-1", "chain_id": 9, "rpc_url": "https://rpc.quai.network/cyprus1", "ledger": "Quai account ledger", "wallet_address": null, "status": "NOT_CONFIGURED"}
+    "base": {"network": "Base", "ens_name": "leoguinan.eth", "wallet_address": "0x0be197c794575579f2f238a68edf2fc5f92817ac", "status": "CONFIGURED_PUBLIC_RECEIVER"},
+    "ethereum": {"network": "Ethereum", "ens_name": "leoguinan.eth", "wallet_address": "0x0be197c794575579f2f238a68edf2fc5f92817ac", "status": "CONFIGURED_PUBLIC_RECEIVER"},
+    "solana": {"network": "Solana", "wallet_address": null, "public_address_source": "market-site/index.html", "status": "CONFIGURED_PUBLIC_RECEIVER"},
+    "polygon": {"network": "Polygon", "ens_name": "leoguinan.eth", "wallet_address": "0x0be197c794575579f2f238a68edf2fc5f92817ac", "status": "CONFIGURED_PUBLIC_RECEIVER"},
+    "quai": {"network": "Quai Cyprus-1", "chain_id": 9, "rpc_url": "https://rpc.quai.network/cyprus1", "ledger": "Quai account ledger", "wallet_address": "0x005A3560C44e506626A26352466429cC963F9fB7", "status": "CONFIGURED_PUBLIC_RECEIVER"}
   },
   "confirmation_policy": {
     "base": null,
