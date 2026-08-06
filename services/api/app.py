@@ -143,6 +143,22 @@ def guide_search(query: str, items: list[sqlite3.Row]) -> list[tuple[float, sqli
     return sorted(scored, key=lambda pair: (-pair[0], pair[1]["published_at"]))[:5]
 
 
+def fts_search(query: str) -> list[tuple[float, sqlite3.Row]]:
+    terms = guide_terms(query)
+    if not terms:
+        return []
+    match = " OR ".join('"' + term.replace('"', '') + '"' for term in terms)
+    with connection() as conn:
+        rows = conn.execute(
+            "SELECT f.id, bm25(f, 3.0, 1.0, 0.5) AS rank FROM guide_items_fts f WHERE f MATCH ? ORDER BY rank LIMIT 5",
+            (match,),
+        ).fetchall()
+        by_id = {}
+        if rows:
+            placeholders = ",".join("?" for _ in rows)
+            items = conn.execute(f"SELECT * FROM guide_items WHERE id IN ({placeholders})", [row["id"] for row in rows]).fetchall()
+            by_id = {item["id"]: item for item in items}
+    return [(-float(row["rank"]), by_id[row["id"]]) for row in rows if row["id"] in by_id]
 def chroma_collection():
     global _CHROMA_COLLECTION
     if _CHROMA_COLLECTION is not None:
@@ -159,13 +175,18 @@ def chroma_collection():
         return None
 
 
-def chroma_search(query: str, items: list[sqlite3.Row]) -> list[tuple[float, sqlite3.Row]]:
+def chroma_search(query: str) -> list[tuple[float, sqlite3.Row]]:
     collection = chroma_collection()
-    if collection is None or not items:
+    if collection is None:
         return []
-    result = collection.query(query_texts=[query], n_results=min(5, len(items)), include=["distances"])
+    result = collection.query(query_texts=[query], n_results=5, include=["distances"])
     ids = (result.get("ids") or [[]])[0]
     distances = (result.get("distances") or [[]])[0]
+    if not ids:
+        return []
+    with connection() as conn:
+        placeholders = ",".join("?" for _ in ids)
+        items = conn.execute(f"SELECT * FROM guide_items WHERE id IN ({placeholders})", ids).fetchall()
     by_id = {item["id"]: item for item in items}
     return [(1.0 / (1.0 + float(distance)), by_id[item_id]) for item_id, distance in zip(ids, distances) if item_id in by_id]
 
@@ -249,9 +270,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/v1/guide/space":
             with connection() as conn:
-                items = conn.execute("SELECT id, title, day, x, y FROM guide_items ORDER BY published_at, id").fetchall()
-                heat = {row["item_id"]: row["hits"] for row in conn.execute("SELECT item_id, COUNT(*) AS hits FROM guide_events GROUP BY item_id")}
-            json_response(self, 200, {"mode": "deterministic-lexical-v0", "items": [{**dict(item), "hits": heat.get(item["id"], 0)} for item in items]})
+                items = conn.execute("SELECT bin_id, x, y, item_count, hits, representative_id FROM guide_space_cache ORDER BY bin_id").fetchall()
+                meta = {row["key"]: row["value"] for row in conn.execute("SELECT key,value FROM guide_cache_meta")}
+            json_response(self, 200, {"mode": "high-level-cache-v1", "items": [dict(item) for item in items], "meta": meta})
+            return
+        if self.path == "/v1/guide/timeline":
+            with connection() as conn:
+                rows = conn.execute("SELECT period, item_count, x, y, sources_json, top_terms_json FROM guide_timeline ORDER BY period").fetchall()
+            json_response(self, 200, {"mode": "high-level-cache-v1", "timeline": [{**dict(row), "sources": json.loads(row["sources_json"]), "top_terms": json.loads(row["top_terms_json"])} for row in rows]})
             return
         if self.path.startswith("/v1/guide/piece"):
             query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
@@ -315,12 +341,11 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(query, str) or not query.strip() or len(query) > 500:
                     raise ValueError("query must be 1-500 characters")
                 with connection() as conn:
-                    items = conn.execute("SELECT * FROM guide_items ORDER BY published_at, id").fetchall()
-                    semantic_matches = chroma_search(query.strip(), items)
-                    matches = semantic_matches or guide_search(query.strip(), items)
-                    retrieval_mode = "chroma-cloud" if semantic_matches else "deterministic-lexical-v0"
+                    semantic_matches = chroma_search(query.strip())
+                    matches = semantic_matches or fts_search(query.strip())
+                    retrieval_mode = "chroma-cloud" if semantic_matches else "sqlite-fts5-v1"
                     if not matches:
-                        json_response(self, 200, {"query": query.strip(), "matches": [], "path": []})
+                        json_response(self, 200, {"query": query.strip(), "matches": [], "path": [], "retrieval_mode": retrieval_mode})
                         return
                     results = [{"id": item["id"], "title": item["title"], "day": item["day"], "source": item["source"], "canonical_url": canonical_piece_url(item["id"]), "score": round(score, 4), "x": item["x"], "y": item["y"]} for score, item in matches]
                     winner = results[0]
