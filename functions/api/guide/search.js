@@ -4,6 +4,10 @@ const ALLOWED_ORIGINS = new Set([
   'https://www.hitchhikersguidetothefuture.com',
 ]);
 
+function allowedOrigin(origin) {
+  return ALLOWED_ORIGINS.has(origin) || origin.endsWith('.hitchhikers-guide.pages.dev');
+}
+
 function json(body, status, headers = {}) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...headers } });
 }
@@ -15,8 +19,8 @@ function visitorCookie(request) {
 
 export async function onRequestPost({ request, env }) {
   const origin = request.headers.get('Origin');
-  const cors = origin && ALLOWED_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } : {};
-  if (origin && !ALLOWED_ORIGINS.has(origin)) return json({ error: 'origin not allowed' }, 403, cors);
+  const cors = origin && allowedOrigin(origin) ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } : {};
+  if (origin && !allowedOrigin(origin)) return json({ error: 'origin not allowed' }, 403, cors);
   if (!env.HGF_API_SERVICE_TOKEN || !env.HGF_API_SERVICE_URL) return json({ error: 'guide search is not configured' }, 503, cors);
   let body;
   try { body = await request.json(); } catch { return json({ error: 'invalid JSON' }, 400, cors); }
