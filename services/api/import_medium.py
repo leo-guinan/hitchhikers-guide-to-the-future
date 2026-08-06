@@ -33,9 +33,9 @@ def main() -> int:
             x, y = guide_coord(title + " " + body)
             conn.execute(
                 """INSERT OR REPLACE INTO guide_items
-                (id, title, body, published_at, day, source, x, y)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (str(row["id"]), title, body, published, day, "Medium archive", x, y),
+                (id, title, body, published_at, day, source, source_url, x, y)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (str(row["id"]), title, body, published, day, "Medium archive", "", x, y),
             )
             imported += 1
         conn.commit()

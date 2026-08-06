@@ -71,6 +71,7 @@ def connection() -> sqlite3.Connection:
             published_at TEXT NOT NULL,
             day TEXT NOT NULL,
             source TEXT NOT NULL,
+            source_url TEXT NOT NULL DEFAULT '',
             x REAL NOT NULL,
             y REAL NOT NULL
         )"""
@@ -84,6 +85,10 @@ def connection() -> sqlite3.Connection:
             created_at INTEGER NOT NULL
         )"""
     )
+    try:
+        conn.execute("ALTER TABLE guide_items ADD COLUMN source_url TEXT NOT NULL DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     return conn
 
@@ -247,7 +252,7 @@ class Handler(BaseHTTPRequestHandler):
             query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             item_id = query.get("id", [""])[0]
             with connection() as conn:
-                item = conn.execute("SELECT id, title, body, day, published_at, source FROM guide_items WHERE id=?", (item_id,)).fetchone()
+                item = conn.execute("SELECT id, title, body, day, published_at, source, source_url FROM guide_items WHERE id=?", (item_id,)).fetchone()
             if item is None:
                 json_response(self, 404, {"error": "piece not found"})
             else:
