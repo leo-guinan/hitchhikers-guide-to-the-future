@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090811">
+  <title>Private Diary — The Hitchhiker's Guide to the Future</title>
+  <style>
+    :root{--void:#090811;--ink:#f5efe4;--muted:#aaa4a0;--dim:#6e6972;--line:rgba(245,239,228,.14);--gold:#e4bb65;--ember:#d36d49;--panel:#100f1a}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--void);color:var(--ink);font-family:Georgia,'Times New Roman',serif}body{min-height:100vh}.shell{min-height:100vh;display:grid;grid-template-rows:auto 1fr auto;max-width:1500px;margin:auto;padding:24px clamp(20px,4vw,64px)}header,footer{display:flex;justify-content:space-between;align-items:center;gap:20px;color:var(--dim);font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase}header{padding-bottom:20px;border-bottom:1px solid var(--line)}header strong{color:var(--gold);font-weight:500}a{color:inherit;text-decoration:none}a:hover{color:var(--gold)}.workspace{display:grid;grid-template-columns:minmax(260px,31%) 1fr;gap:0;margin:32px 0;border:1px solid var(--line);min-height:calc(100vh - 180px);background:linear-gradient(135deg,rgba(228,187,101,.03),transparent 35%)}.rail{border-right:1px solid var(--line);padding:28px;display:flex;flex-direction:column}.kicker{margin:0 0 20px;color:var(--ember);font:11px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase}.rail h1{font-size:clamp(28px,3vw,44px);font-weight:400;line-height:1.02;margin:0 0 18px}.rail h1 em{color:var(--gold);font-style:normal}.rail p{color:var(--muted);font-size:15px;line-height:1.65;margin:0 0 28px}.entries{list-style:none;padding:0;margin:0;display:grid;gap:8px;overflow:auto}.entries li{border-top:1px solid var(--line);padding:13px 0;color:var(--muted);font-size:14px;line-height:1.35;cursor:pointer}.entries li:hover{color:var(--ink)}.entries time{display:block;color:var(--dim);font:10px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;margin-bottom:5px;text-transform:uppercase}.empty{color:var(--dim)!important;font-style:italic;cursor:default!important}.editor{display:flex;flex-direction:column;padding:clamp(24px,5vw,76px);position:relative}.editor:before{content:'PRIVATE / UNPUBLISHED';position:absolute;top:28px;right:28px;color:var(--dim);font:10px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em}.editor h2{font-size:clamp(30px,5vw,68px);font-weight:400;line-height:1;margin:0 0 16px;max-width:750px}.editor h2 em{color:var(--gold);font-style:normal}.prompt{color:var(--muted);font-size:18px;line-height:1.5;max-width:620px;margin:0 0 34px}.editor textarea{flex:1;width:100%;min-height:280px;resize:none;border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:transparent;color:var(--ink);font:18px/1.7 Georgia,'Times New Roman',serif;padding:24px 0;outline:none}.editor textarea::placeholder{color:#55515b}.actions{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:20px}.status{color:var(--muted);font:11px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.05em}.status.error{color:var(--ember)}button{border:1px solid var(--gold);background:var(--gold);color:#17131a;padding:12px 18px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}button:hover{background:#f0d28d}footer{padding-top:10px}footer span:last-child{color:var(--dim)}@media(max-width:760px){.workspace{grid-template-columns:1fr;margin:20px 0;min-height:0}.rail{border-right:0;border-bottom:1px solid var(--line);padding:22px}.rail p{margin-bottom:18px}.entries{max-height:150px}.editor{min-height:620px;padding:30px 22px}.editor:before{position:static;margin-bottom:28px}.editor h2{font-size:42px}.actions{align-items:flex-start;flex-direction:column-reverse}button{width:100%}header,footer{font-size:9px}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header><a href="/">HGF / NODE 001</a><strong>Private diary</strong><a href="/enter/">Exit</a></header>
+    <main class="workspace">
+      <aside class="rail">
+        <p class="kicker">The unpublished record</p>
+        <h1>Write the future <em>closer.</em></h1>
+        <p>Nothing here is public. These are the thoughts before they become waymarks.</p>
+        <ul class="entries" id="entries" aria-label="Private diary entries"><li class="empty">Loading the record…</li></ul>
+      </aside>
+      <section class="editor" aria-label="Private diary editor">
+        <p class="kicker">A blank page is still a direction</p>
+        <h2>What is becoming <em>unavoidable?</em></h2>
+        <p class="prompt">Write without performing. You can publish a version later. For now, leave the thought where it can change you.</p>
+        <textarea id="draft" aria-label="Private diary entry" placeholder="Begin with the sentence you keep avoiding…"></textarea>
+        <div class="actions"><span id="status" class="status" aria-live="polite">Private session active.</span><button id="save" type="button">Save privately&nbsp; →</button></div>
+      </section>
+    </main>
+    <footer><span>the hitchhiker's guide to the future</span><span>private by default · no performance required</span></footer>
+  </div>
+  <script>
+    const entries = document.getElementById('entries');
+    const draft = document.getElementById('draft');
+    const status = document.getElementById('status');
+    const formatDate = (value) => new Date(value * 1000).toLocaleDateString(undefined, {year:'numeric',month:'short',day:'numeric'});
+    const excerpt = (value) => value.length > 88 ? value.slice(0, 88).trim() + '…' : value;
+    const setStatus = (value, error = false) => { status.textContent = value; status.classList.toggle('error', error); };
+    async function loadEntries() {
+      const response = await fetch('/api/diary');
+      if (response.status === 401) { location.href = '/enter/'; return; }
+      if (!response.ok) throw new Error('The private record is unavailable.');
+      const data = await response.json();
+      entries.innerHTML = data.entries.length ? data.entries.map((entry) => `<li data-content="${encodeURIComponent(entry.content)}"><time>${formatDate(entry.created_at)}</time>${excerpt(entry.content)}</li>`).join('') : '<li class="empty">No entries yet. The first sentence is waiting.</li>';
+      entries.querySelectorAll('li[data-content]').forEach((item) => item.addEventListener('click', () => { draft.value = decodeURIComponent(item.dataset.content); draft.focus(); }));
+    }
+    document.getElementById('save').addEventListener('click', async () => {
+      const content = draft.value.trim();
+      if (!content) { setStatus('Write something before saving.', true); draft.focus(); return; }
+      setStatus('Making a private receipt…');
+      try {
+        const response = await fetch('/api/diary', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({content})});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not save the entry.');
+        draft.value = '';
+        setStatus('Saved privately. The future moved a little.');
+        await loadEntries();
+      } catch (error) { setStatus(error.message, true); }
+    });
+    loadEntries().catch((error) => setStatus(error.message, true));
+  </script>
+</body>
+</html>

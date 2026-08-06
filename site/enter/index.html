@@ -136,10 +136,10 @@
     const params = new URLSearchParams(location.search);
     const handoff = params.get('preview_handoff');
     if (handoff) {
-      fetch('https://auth.ideanexusventures.com/preview/redeem?handoff=' + encodeURIComponent(handoff), { method: 'POST' })
-        .then((response) => response.ok ? response.json() : Promise.reject(new Error('handoff rejected')))
-        .then(() => announce('login-status', 'Identity handoff received. The private session boundary is ready for the application layer.'))
-        .catch(() => announce('login-status', 'Identity handoff could not be redeemed. No session was created.', true));
+      fetch('/api/auth/redeem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ handoff }) })
+        .then((response) => response.ok ? response.json() : response.json().then((body) => Promise.reject(new Error(body.error || 'handoff rejected'))))
+        .then(() => { location.href = '/diary/'; })
+        .catch((error) => announce('login-status', error.message + ' No private session was created.', true));
       history.replaceState({}, '', location.pathname);
     }
     document.getElementById('signup-form').addEventListener('submit', async (event) => {

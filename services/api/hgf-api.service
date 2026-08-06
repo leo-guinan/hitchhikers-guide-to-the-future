@@ -1,0 +1,23 @@
+[Unit]
+Description=Hitchhikers Guide private diary API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/hgf-api
+EnvironmentFile=/etc/hgf-api/api.env
+Environment=HGF_API_HOST=127.0.0.1
+Environment=HGF_API_PORT=8846
+ExecStart=/usr/bin/python3 /opt/hgf-api/app.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/hgf-api
+
+[Install]
+WantedBy=multi-user.target
