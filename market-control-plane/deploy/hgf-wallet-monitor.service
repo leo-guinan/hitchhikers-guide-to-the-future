@@ -1,0 +1,28 @@
+[Unit]
+Description=HGF public wallet activity observer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/hgf-wallet-monitor
+Environment=HOME=/root
+Environment=WALLET_MONITOR_STATE=/var/lib/hgf-wallet-monitor/state.json
+ExecStart=/usr/bin/python3 /opt/hgf-wallet-monitor/watch_wallets.py
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/var/lib/hgf-wallet-monitor
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectHostname=true
