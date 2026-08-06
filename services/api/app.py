@@ -9,13 +9,16 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
+import re
 import secrets
 import sqlite3
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -53,12 +56,74 @@ def connection() -> sqlite3.Connection:
             created_at INTEGER NOT NULL
         )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS guide_items (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            published_at TEXT NOT NULL,
+            day TEXT NOT NULL,
+            source TEXT NOT NULL,
+            x REAL NOT NULL,
+            y REAL NOT NULL
+        )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS guide_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            visitor_hash TEXT NOT NULL,
+            query_hash TEXT NOT NULL,
+            item_id TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        )"""
+    )
     conn.commit()
     return conn
 
 
 def digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9'’-]{2,}", re.I)
+STOPWORDS = set("the and for that with this from what when where who why how are was were you your about into than then have has had not but can could would should our their they them its it's a an of to in on at by as is be it or if do does did i me my we us a from one two three".split())
+
+
+def guide_terms(text: str) -> list[str]:
+    return [token.lower().replace("’", "'") for token in TOKEN_RE.findall(text.lower()) if token.lower() not in STOPWORDS]
+
+
+def guide_coord(text: str) -> tuple[float, float]:
+    counts = Counter(guide_terms(text))
+    x = sum(math.sin(int(hashlib.sha256(term.encode()).hexdigest()[:8], 16)) * count for term, count in counts.items())
+    y = sum(math.cos(int(hashlib.sha256(term.encode()).hexdigest()[8:16], 16)) * count for term, count in counts.items())
+    scale = max(1.0, math.sqrt(x * x + y * y))
+    return round(0.5 + 0.44 * x / scale, 5), round(0.5 + 0.44 * y / scale, 5)
+
+
+def guide_search(query: str, items: list[sqlite3.Row]) -> list[tuple[float, sqlite3.Row]]:
+    query_terms = Counter(guide_terms(query))
+    if not query_terms:
+        return []
+    document_frequency = Counter()
+    tokenized = {}
+    for item in items:
+        terms = set(guide_terms(item["title"] + " " + item["body"]))
+        tokenized[item["id"]] = terms
+        document_frequency.update(terms)
+    total = max(1, len(items))
+    scored = []
+    for item in items:
+        terms = tokenized[item["id"]]
+        score = 0.0
+        for term, weight in query_terms.items():
+            if term in terms:
+                score += weight * math.log((total + 1) / (document_frequency[term] + 1))
+                if term in guide_terms(item["title"]):
+                    score += 1.5 * weight
+        if score:
+            scored.append((score, item))
+    return sorted(scored, key=lambda pair: (-pair[0], pair[1]["published_at"]))[:5]
 
 
 def service_authorized(handler: BaseHTTPRequestHandler) -> bool:
@@ -130,6 +195,25 @@ class Handler(BaseHTTPRequestHandler):
         if not service_authorized(self):
             json_response(self, 401, {"error": "service authorization required"})
             return
+        if self.path == "/v1/guide/space":
+            with connection() as conn:
+                items = conn.execute("SELECT id, title, day, x, y FROM guide_items ORDER BY published_at, id").fetchall()
+                heat = {row["item_id"]: row["hits"] for row in conn.execute("SELECT item_id, COUNT(*) AS hits FROM guide_events GROUP BY item_id")}
+            json_response(self, 200, {"mode": "deterministic-lexical-v0", "items": [{**dict(item), "hits": heat.get(item["id"], 0)} for item in items]})
+            return
+        if self.path.startswith("/v1/guide/piece"):
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            item_id = query.get("id", [""])[0]
+            with connection() as conn:
+                item = conn.execute("SELECT id, title, body, day, published_at, source FROM guide_items WHERE id=?", (item_id,)).fetchone()
+            if item is None:
+                json_response(self, 404, {"error": "piece not found"})
+            else:
+                json_response(self, 200, {"piece": dict(item)})
+            return
+        if not service_authorized(self):
+            json_response(self, 401, {"error": "service authorization required"})
+            return
         token = self.headers.get("X-HGF-Session", "")
         row = session_row(token)
         if row is None:
@@ -169,6 +253,30 @@ class Handler(BaseHTTPRequestHandler):
                     conn.commit()
                 json_response(self, 200, {"session_token": token, "expires_in": SESSION_TTL, "node_id": "hgf:guide"})
             except (ValueError, RuntimeError, sqlite3.Error) as exc:
+                json_response(self, 400, {"error": str(exc)})
+            return
+        if self.path == "/v1/guide/search":
+            try:
+                body = read_json(self)
+                query = body.get("query")
+                visitor = body.get("visitor_id", "")
+                if not isinstance(query, str) or not query.strip() or len(query) > 500:
+                    raise ValueError("query must be 1-500 characters")
+                with connection() as conn:
+                    items = conn.execute("SELECT * FROM guide_items ORDER BY published_at, id").fetchall()
+                    matches = guide_search(query.strip(), items)
+                    if not matches:
+                        json_response(self, 200, {"query": query.strip(), "matches": [], "path": []})
+                        return
+                    results = [{"id": item["id"], "title": item["title"], "day": item["day"], "source": item["source"], "score": round(score, 4), "x": item["x"], "y": item["y"]} for score, item in matches]
+                    winner = results[0]
+                    visitor_hash = digest(SERVICE_TOKEN + ":visitor:" + str(visitor))
+                    query_hash = digest(SERVICE_TOKEN + ":query:" + query.strip().lower())
+                    conn.execute("INSERT INTO guide_events(visitor_hash, query_hash, item_id, created_at) VALUES (?, ?, ?, ?)", (visitor_hash, query_hash, winner["id"], int(time.time())))
+                    conn.commit()
+                path = [{"x": 0.5, "y": 0.5}] + [{"x": result["x"], "y": result["y"]} for result in results[:3]]
+                json_response(self, 200, {"query": query.strip(), "matches": results, "path": path, "privacy": "aggregate-search-event"})
+            except (ValueError, sqlite3.Error) as exc:
                 json_response(self, 400, {"error": str(exc)})
             return
         token = self.headers.get("X-HGF-Session", "")
