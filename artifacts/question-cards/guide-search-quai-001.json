@@ -1,0 +1,17 @@
+{
+  "receipt_id": "guide-search-quai-001",
+  "artifact": "/Users/leoguinan/hitchhikers-guide-to-the-future/artifacts/question-cards/guide-search-quai-001.png",
+  "source_screenshot": "/Users/leoguinan/hitchhikers-guide-to-the-future/artifacts/question-cards/source/guide-search-quai-001-source.png",
+  "question": "Why @QuaiNetwork?",
+  "result": "5 items over 496 days",
+  "range": {
+    "start": "2025-03-27",
+    "end": "2026-08-05",
+    "days": 496
+  },
+  "retrieval": "chroma-cloud",
+  "source": "guide.hitchhikersguidetothefuture.com/guide/",
+  "captured_at_local_filename": "2026-08-06 18:41:04",
+  "claim_boundary": "Evidence of a bounded search result at capture time; not evidence of causality, performance, ownership, or investment value.",
+  "sha256": "e1f9e21256b6e7dc96accac64f93d6e6315885441e96e7c8a9d03fb215bfe376"
+}
