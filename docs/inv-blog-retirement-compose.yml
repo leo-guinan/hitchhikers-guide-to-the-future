@@ -1,0 +1,25 @@
+services:
+  redirect:
+    image: python:3.12-alpine
+    container_name: inv-blog-retirement-redirect
+    restart: unless-stopped
+    command: ["python", "/app/inv_redirect_server.py"]
+    volumes:
+      - ./inv_redirect_server.py:/app/inv_redirect_server.py:ro
+      - ./redirect-map.csv:/app/redirect-map.csv:ro
+    environment:
+      REDIRECT_MAP: /app/redirect-map.csv
+      PORT: "8080"
+    networks:
+      - traefik_proxy
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: traefik_proxy
+      traefik.http.routers.inv-blog-retirement.rule: Host(`blog.ideanexusventures.com`)
+      traefik.http.routers.inv-blog-retirement.entrypoints: websecure
+      traefik.http.routers.inv-blog-retirement.tls.certresolver: le
+      traefik.http.services.inv-blog-retirement.loadbalancer.server.port: "8080"
+
+networks:
+  traefik_proxy:
+    external: true

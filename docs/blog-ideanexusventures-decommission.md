@@ -1,6 +1,6 @@
 # Idea Nexus Ventures blog decommission preparation
 
-Status: preparation only. No DNS, Traefik router, container, volume, or source deployment has been changed.
+Status: cutover complete. The public Ghost surface now redirects to the guide. The original Ghost containers are stopped and removed, while the database/content volumes and backups are retained for rollback.
 
 ## Deployment identity
 
