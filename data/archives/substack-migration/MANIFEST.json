@@ -1,0 +1,20 @@
+{
+  "archives": [
+    {
+      "file": "engineering_generosity.json",
+      "records": 96,
+      "sha256": "23503892bf44e05e3250dc39aa482dd981d2a5e79403e93424c39a319f770019",
+      "source": "public full-text normalized archive"
+    },
+    {
+      "file": "hitchhiker_to_the_future.json",
+      "records": 103,
+      "sha256": "862855e90c8feb425933f9a8629983ecb9273badd0cc03c5e28b7fcc3bdb7d0c",
+      "source": "public full-text normalized archive"
+    }
+  ],
+  "engineering_records": 96,
+  "hitchhiker_records": 103,
+  "excluded_empty_records": 2,
+  "retained_outside_public_repo": "/Users/leoguinan/Projects/trust-substrate-os/corpora/substack-migration-20260806"
+}
