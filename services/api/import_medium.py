@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from app import connection, guide_coord  # noqa: E402
+from app import chroma_collection, connection, guide_coord  # noqa: E402
 
 
 def main() -> int:
@@ -38,7 +39,19 @@ def main() -> int:
             )
             imported += 1
         conn.commit()
-    print(json.dumps({"imported": imported, "source": str(args.items), "mode": "deterministic-lexical-v0"}))
+    collection = chroma_collection()
+    if collection is not None:
+        for row in rows:
+            if not row.get("id") or not row.get("text"):
+                continue
+            document = str(row["title"]) + "\n\n" + str(row["text"])
+            document = document.encode("utf-8")[:15000].decode("utf-8", errors="ignore")
+            collection.upsert(
+                ids=[str(row["id"])],
+                documents=[document],
+                metadatas=[{"title": str(row.get("title", "")), "day": str(row.get("day", "")), "source": "Medium archive", "embedding_truncated": len(document) < len(str(row["title"]) + "\n\n" + str(row["text"]))}],
+            )
+    print(json.dumps({"imported": imported, "chroma": collection is not None, "collection": os.getenv("CHROMA_COLLECTION", "hgf_medium_archive_v1"), "source": str(args.items), "mode": "chroma-cloud" if collection is not None else "deterministic-lexical-v0"}))
     return 0
 
 

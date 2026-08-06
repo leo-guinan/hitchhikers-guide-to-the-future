@@ -19,6 +19,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
+from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -28,7 +29,13 @@ DATA_DIR = Path(os.getenv("HGF_API_DATA_DIR", "/var/lib/hgf-api"))
 DB_PATH = DATA_DIR / "hgf.sqlite3"
 AUTH_SERVICE_URL = os.getenv("HGF_AUTH_SERVICE_URL", "https://auth.ideanexusventures.com").rstrip("/")
 SERVICE_TOKEN = os.getenv("HGF_API_SERVICE_TOKEN", "").strip()
+CHROMA_API_KEY = os.getenv("CHROMA_API_KEY", "").strip()
+CHROMA_TENANT = os.getenv("CHROMA_TENANT", "").strip()
+CHROMA_DATABASE = os.getenv("CHROMA_DATABASE", "").strip()
+CHROMA_HOST = os.getenv("CHROMA_HOST", "api.trychroma.com").strip()
+CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "hgf_medium_archive_v1").strip()
 SESSION_TTL = 60 * 60 * 24 * 14
+_CHROMA_COLLECTION = None
 
 
 def connection() -> sqlite3.Connection:
@@ -124,6 +131,41 @@ def guide_search(query: str, items: list[sqlite3.Row]) -> list[tuple[float, sqli
         if score:
             scored.append((score, item))
     return sorted(scored, key=lambda pair: (-pair[0], pair[1]["published_at"]))[:5]
+
+
+def chroma_collection():
+    global _CHROMA_COLLECTION
+    if _CHROMA_COLLECTION is not None:
+        return _CHROMA_COLLECTION
+    if not CHROMA_API_KEY or not CHROMA_TENANT or not CHROMA_DATABASE:
+        return None
+    try:
+        import chromadb
+        client = chromadb.CloudClient(api_key=CHROMA_API_KEY, tenant=CHROMA_TENANT, database=CHROMA_DATABASE, cloud_host=CHROMA_HOST)
+        _CHROMA_COLLECTION = client.get_or_create_collection(CHROMA_COLLECTION, metadata={"source": "HGF Medium archive", "embedding_model": "chroma-default-all-MiniLM-L6-v2"})
+        return _CHROMA_COLLECTION
+    except Exception as exc:
+        print(f"hgf-api chroma unavailable: {type(exc).__name__}: {exc}", flush=True)
+        return None
+
+
+def chroma_search(query: str, items: list[sqlite3.Row]) -> list[tuple[float, sqlite3.Row]]:
+    collection = chroma_collection()
+    if collection is None or not items:
+        return []
+    result = collection.query(query_texts=[query], n_results=min(5, len(items)), include=["distances"])
+    ids = (result.get("ids") or [[]])[0]
+    distances = (result.get("distances") or [[]])[0]
+    by_id = {item["id"]: item for item in items}
+    return [(1.0 / (1.0 + float(distance)), by_id[item_id]) for item_id, distance in zip(ids, distances) if item_id in by_id]
+
+
+def result_span(results: list[dict]) -> dict:
+    days = sorted(result["day"] for result in results)
+    if not days:
+        return {"start": None, "end": None, "days": 0, "years": 0.0}
+    duration = (date.fromisoformat(days[-1]) - date.fromisoformat(days[0])).days
+    return {"start": days[0], "end": days[-1], "days": duration, "years": round(duration / 365.25, 2)}
 
 
 def service_authorized(handler: BaseHTTPRequestHandler) -> bool:
@@ -264,7 +306,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("query must be 1-500 characters")
                 with connection() as conn:
                     items = conn.execute("SELECT * FROM guide_items ORDER BY published_at, id").fetchall()
-                    matches = guide_search(query.strip(), items)
+                    semantic_matches = chroma_search(query.strip(), items)
+                    matches = semantic_matches or guide_search(query.strip(), items)
+                    retrieval_mode = "chroma-cloud" if semantic_matches else "deterministic-lexical-v0"
                     if not matches:
                         json_response(self, 200, {"query": query.strip(), "matches": [], "path": []})
                         return
@@ -275,7 +319,7 @@ class Handler(BaseHTTPRequestHandler):
                     conn.execute("INSERT INTO guide_events(visitor_hash, query_hash, item_id, created_at) VALUES (?, ?, ?, ?)", (visitor_hash, query_hash, winner["id"], int(time.time())))
                     conn.commit()
                 path = [{"x": 0.5, "y": 0.5}] + [{"x": result["x"], "y": result["y"]} for result in results[:3]]
-                json_response(self, 200, {"query": query.strip(), "matches": results, "path": path, "privacy": "aggregate-search-event"})
+                json_response(self, 200, {"query": query.strip(), "matches": results, "result_count": len(results), "date_span": result_span(results), "retrieval_mode": retrieval_mode, "path": path, "privacy": "aggregate-search-event"})
             except (ValueError, sqlite3.Error) as exc:
                 json_response(self, 400, {"error": str(exc)})
             return
