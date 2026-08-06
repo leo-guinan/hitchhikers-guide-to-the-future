@@ -1,0 +1,10 @@
+{
+  "post_count": 41,
+  "source": {
+    "url": "https://blog.ideanexusventures.com",
+    "archive_api_url": "https://blog.ideanexusventures.com/sitemap-posts.xml",
+    "kind": "ghost"
+  },
+  "derivative": "text-only provenance-preserving public archive",
+  "raw_backup": "/Users/leoguinan/Projects/trust-substrate-os/corpora/blog-ideanexusventures-com-ghost-block/"
+}
