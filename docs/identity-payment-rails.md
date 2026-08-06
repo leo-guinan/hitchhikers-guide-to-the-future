@@ -14,7 +14,7 @@ with:
 - `property_id=x:marvin-panics`
 - `return_to=https://hitchhikersguidetothefuture.com/enter/`
 
-The auth service already approves the apex and `www` HGF origins. After provider authorization and workspace selection, it returns a short-lived `preview_handoff`; the HGF boarding page redeems that handoff against `/preview/redeem` but does not treat a browser-held claim as a private diary session. A real diary session still requires an application backend session boundary.
+The auth service returns a short-lived `preview_handoff`; the HGF Pages relay sends it to the HGF API, which redeems it server-to-server and creates an opaque, node-scoped application session. The browser receives only an HTTP-only `hgf_session` cookie. The preview claim is never used as browser authority.
 
 ## Payments
 
