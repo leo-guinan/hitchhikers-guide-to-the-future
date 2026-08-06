@@ -34,6 +34,7 @@ CHROMA_TENANT = os.getenv("CHROMA_TENANT", "").strip()
 CHROMA_DATABASE = os.getenv("CHROMA_DATABASE", "").strip()
 CHROMA_HOST = os.getenv("CHROMA_HOST", "api.trychroma.com").strip()
 CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "hgf_medium_archive_v1").strip()
+GUIDE_PUBLIC_URL = os.getenv("HGF_GUIDE_PUBLIC_URL", "https://guide.hitchhikersguidetothefuture.com").rstrip("/")
 SESSION_TTL = 60 * 60 * 24 * 14
 _CHROMA_COLLECTION = None
 
@@ -95,6 +96,10 @@ def connection() -> sqlite3.Connection:
 
 def digest(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def canonical_piece_url(item_id: str) -> str:
+    return f"{GUIDE_PUBLIC_URL}/guide/piece/?id={urllib.parse.quote(item_id, safe='')}"
 
 
 TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9'’-]{2,}", re.I)
@@ -256,7 +261,7 @@ class Handler(BaseHTTPRequestHandler):
             if item is None:
                 json_response(self, 404, {"error": "piece not found"})
             else:
-                json_response(self, 200, {"piece": dict(item)})
+                json_response(self, 200, {"piece": {**dict(item), "canonical_url": canonical_piece_url(item["id"])}})
             return
         if not service_authorized(self):
             json_response(self, 401, {"error": "service authorization required"})
@@ -317,7 +322,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not matches:
                         json_response(self, 200, {"query": query.strip(), "matches": [], "path": []})
                         return
-                    results = [{"id": item["id"], "title": item["title"], "day": item["day"], "source": item["source"], "score": round(score, 4), "x": item["x"], "y": item["y"]} for score, item in matches]
+                    results = [{"id": item["id"], "title": item["title"], "day": item["day"], "source": item["source"], "canonical_url": canonical_piece_url(item["id"]), "score": round(score, 4), "x": item["x"], "y": item["y"]} for score, item in matches]
                     winner = results[0]
                     visitor_hash = digest(SERVICE_TOKEN + ":visitor:" + str(visitor))
                     query_hash = digest(SERVICE_TOKEN + ":query:" + query.strip().lower())
