@@ -19,7 +19,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
-from datetime import date
+from datetime import date, datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -62,6 +62,14 @@ def connection() -> sqlite3.Connection:
             node_id TEXT NOT NULL,
             content TEXT NOT NULL,
             created_at INTEGER NOT NULL
+        )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS guide_search_snapshots (
+            snapshot_id TEXT PRIMARY KEY,
+            question_hash TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            snapshot_json TEXT NOT NULL
         )"""
     )
     conn.execute(
@@ -189,6 +197,37 @@ def chroma_search(query: str) -> list[tuple[float, sqlite3.Row]]:
         items = conn.execute(f"SELECT * FROM guide_items WHERE id IN ({placeholders})", ids).fetchall()
     by_id = {item["id"]: item for item in items}
     return [(1.0 / (1.0 + float(distance)), by_id[item_id]) for item_id, distance in zip(ids, distances) if item_id in by_id]
+
+
+def build_search_answer(query: str, results: list[dict], retrieval_mode: str, created_at: int) -> dict:
+    if not results:
+        return {
+            "text": "The archive found no connected pieces for this question at this moment. That absence is part of the snapshot, not a zero-confidence answer.",
+            "basis": "bounded retrieval returned no matching connection",
+            "retrieval_mode": retrieval_mode,
+            "generated_at": datetime.fromtimestamp(created_at, timezone.utc).isoformat().replace("+00:00", "Z"),
+            "claim_boundary": "No retrieved connection is not proof that the idea is absent from the world; it records only this archive state and retrieval result.",
+        }
+    span = result_span(results)
+    source_counts = Counter(result["source"] for result in results)
+    source_text = ", ".join(f"{count} {source} pieces" for source, count in source_counts.items())
+    if span["start"] and span["end"]:
+        range_text = f"from {span['start']} to {span['end']} ({span['days']} days)"
+    else:
+        range_text = "within the available archive"
+    lead = results[0]["title"] if results else "no retrieved piece"
+    return {
+        "text": f"The archive returns {len(results)} connected pieces {range_text}. The strongest retrieved connection is {lead}; the result set contains {source_text}.",
+        "basis": "top-five retrieval results and their dated coordinates",
+        "retrieval_mode": retrieval_mode,
+        "generated_at": datetime.fromtimestamp(created_at, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "claim_boundary": "This is a retrieval-derived answer. It describes what the archive connected at this moment; it does not establish causality, truth, performance, or value.",
+    }
+
+
+def snapshot_id(created_at: int, question_hash: str) -> str:
+    stamp = datetime.fromtimestamp(created_at, timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"qs-{stamp}-{question_hash[:10]}"
 
 
 def result_span(results: list[dict]) -> dict:
@@ -345,7 +384,15 @@ class Handler(BaseHTTPRequestHandler):
                     matches = semantic_matches or fts_search(query.strip())
                     retrieval_mode = "chroma-cloud" if semantic_matches else "sqlite-fts5-v1"
                     if not matches:
-                        json_response(self, 200, {"query": query.strip(), "matches": [], "path": [], "retrieval_mode": retrieval_mode})
+                        created_at = int(time.time())
+                        question_hash = digest(SERVICE_TOKEN + ":query:" + query.strip().lower())
+                        answer = build_search_answer(query.strip(), [], retrieval_mode, created_at)
+                        snapshot = {"snapshot_id": snapshot_id(created_at, question_hash), "created_at": datetime.fromtimestamp(created_at, timezone.utc).isoformat().replace("+00:00", "Z"), "question_hash": question_hash, "answer": answer, "connections": [], "path": [], "date_span": result_span([]), "retrieval_mode": retrieval_mode, "privacy": "raw-question-returned-to-browser; server-stores-question-hash-only"}
+                        with connection() as snapshot_conn:
+                            snapshot_conn.execute("INSERT OR REPLACE INTO guide_search_snapshots(snapshot_id, question_hash, created_at, snapshot_json) VALUES (?, ?, ?, ?)", (snapshot["snapshot_id"], question_hash, created_at, json.dumps(snapshot, separators=(",", ":"))))
+                            snapshot_conn.commit()
+                        snapshot["question"] = query.strip()
+                        json_response(self, 200, {"query": query.strip(), "matches": [], "result_count": 0, "date_span": result_span([]), "retrieval_mode": retrieval_mode, "path": [], "answer": answer, "snapshot": snapshot, "privacy": "aggregate-search-event"})
                         return
                     results = [{"id": item["id"], "title": item["title"], "day": item["day"], "source": item["source"], "canonical_url": canonical_piece_url(item["id"]), "score": round(score, 4), "x": item["x"], "y": item["y"]} for score, item in matches]
                     winner = results[0]
@@ -353,8 +400,26 @@ class Handler(BaseHTTPRequestHandler):
                     query_hash = digest(SERVICE_TOKEN + ":query:" + query.strip().lower())
                     conn.execute("INSERT INTO guide_events(visitor_hash, query_hash, item_id, created_at) VALUES (?, ?, ?, ?)", (visitor_hash, query_hash, winner["id"], int(time.time())))
                     conn.commit()
-                path = [{"x": 0.5, "y": 0.5}] + [{"x": result["x"], "y": result["y"]} for result in results[:3]]
-                json_response(self, 200, {"query": query.strip(), "matches": results, "result_count": len(results), "date_span": result_span(results), "retrieval_mode": retrieval_mode, "path": path, "privacy": "aggregate-search-event"})
+                    created_at = int(time.time())
+                    path = [{"x": 0.5, "y": 0.5}] + [{"x": result["x"], "y": result["y"]} for result in results]
+                    answer = build_search_answer(query.strip(), results, retrieval_mode, created_at)
+                    question_hash = digest(SERVICE_TOKEN + ":query:" + query.strip().lower())
+                    snapshot = {
+                        "snapshot_id": snapshot_id(created_at, question_hash),
+                        "created_at": datetime.fromtimestamp(created_at, timezone.utc).isoformat().replace("+00:00", "Z"),
+                        "question_hash": question_hash,
+                        "answer": answer,
+                        "connections": results,
+                        "path": path,
+                        "date_span": result_span(results),
+                        "retrieval_mode": retrieval_mode,
+                        "privacy": "raw-question-returned-to-browser; server-stores-question-hash-only",
+                    }
+                    with connection() as snapshot_conn:
+                        snapshot_conn.execute("INSERT OR REPLACE INTO guide_search_snapshots(snapshot_id, question_hash, created_at, snapshot_json) VALUES (?, ?, ?, ?)", (snapshot["snapshot_id"], question_hash, created_at, json.dumps(snapshot, separators=(",", ":"))))
+                        snapshot_conn.commit()
+                snapshot["question"] = query.strip()
+                json_response(self, 200, {"query": query.strip(), "matches": results, "result_count": len(results), "date_span": result_span(results), "retrieval_mode": retrieval_mode, "path": path, "answer": answer, "snapshot": snapshot, "privacy": "aggregate-search-event"})
             except (ValueError, sqlite3.Error) as exc:
                 json_response(self, 400, {"error": str(exc)})
             return
