@@ -2,6 +2,7 @@ const ALLOWED_ORIGINS = new Set([
   'https://guide.hitchhikersguidetothefuture.com',
   'https://hitchhikersguidetothefuture.com',
   'https://www.hitchhikersguidetothefuture.com',
+  'https://hitchhikers-guide.pages.dev',
 ]);
 
 function allowedOrigin(origin) {
