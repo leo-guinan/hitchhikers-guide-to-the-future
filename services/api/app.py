@@ -265,7 +265,7 @@ def multistage_search(original: str) -> dict:
     reflection_one = reflection_queries(original, initial, SEARCH_REFLECTION_QUERIES)
     for query in reflection_one:
         run(2, query)
-    reflection_two = [query for query in reflection_queries(original, [entry["item"] for entry in merged.values()], SEARCH_SECOND_REFLECTION_QUERIES) if query not in queried][:SEARCH_SECOND_REFLECTION_QUERIES]
+    reflection_two = [query for query in reflection_queries(original, [entry["item"] for entry in merged.values()], SEARCH_SECOND_REFLECTION_QUERIES + SEARCH_REFLECTION_QUERIES) if query not in queried][:SEARCH_SECOND_REFLECTION_QUERIES]
     for query in reflection_two:
         run(3, query)
 
