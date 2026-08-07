@@ -56,8 +56,21 @@ class MultiStageSearchTests(unittest.TestCase):
         self.assertIn("transforms inputs into more valuable outputs", answer["text"])
         self.assertIn("human coordination", answer["text"])
         self.assertIsNotNone(answer["synthesis"])
+    def test_quai_question_gets_calibrated_entity_synthesis(self):
+        from app import build_search_answer
+        answer = build_search_answer(
+            "why quai?",
+            [{"id": "a", "title": "Quai note", "day": "2026-07-24", "source": "archive", "distance": 0.9, "body_excerpt": "Quai is energy efficient and low energy. The network rewards tips, staking, referrals, and distributed sensor receipts."}],
+            "multi-stage-chroma+fts",
+            0,
+            {"stage_count": 6, "stage_candidate_total": 300, "reflection_count": 5, "lexical_count": 13},
+        )
+        self.assertIn("energy efficiency and lower variance", answer["text"])
+        self.assertIn("incentive layer", answer["text"])
+        self.assertIn("does not establish", answer["text"])
+        self.assertIsNotNone(answer["synthesis"])
 
-
+    def test_compressed_answer_is_one_shareable_sentence(self):
         from app import build_search_answer
         answer = build_search_answer(
             "crypto",

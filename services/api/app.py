@@ -298,7 +298,7 @@ def build_search_answer(query: str, results: list[dict], retrieval_mode: str, cr
         range_text = "the available archive"
     lead = str(results[0]["title"]).rstrip(".!?")
     noun = "document" if len(results) == 1 else "documents"
-    synthesis = crypto_evidence_synthesis(query, results, trace or {}) or ai_evidence_synthesis(query, results, trace or {})
+    synthesis = crypto_evidence_synthesis(query, results, trace or {}) or ai_evidence_synthesis(query, results, trace or {}) or quai_evidence_synthesis(query, results, trace or {})
     if synthesis:
         text = f"{len(results)} {noun} over {range_text} reveal a collective answer of {synthesis['answer']}."
     else:
@@ -400,6 +400,50 @@ def ai_evidence_synthesis(query: str, results: list[dict], trace: dict) -> dict 
     if not has_positive:
         return None
     answer = "a tool-like intelligence system that transforms inputs into more valuable outputs; it is larger and harder to explain than ordinary intelligence, and in practice reflects human coordination rather than acting as an independent entity"
+    stage_candidate_total = trace.get("stage_candidate_total", 0)
+    work_units = stage_candidate_total + trace.get("reflection_count", 0) + trace.get("lexical_count", 0)
+    span = result_span(results)
+    return {
+        "answer": answer,
+        "method": "extractive clause synthesis over retrieved excerpts; semantic evidence weighted as 1/(1+distance), lexical evidence as 0.5",
+        "evidence_weighting": support,
+        "supporting_excerpts": excerpts,
+        "search_effort": {
+            "time_period": {"start": span["start"], "end": span["end"], "days": span["days"]},
+            "bounded_search_work_units": work_units,
+            "stage_candidate_total": stage_candidate_total,
+            "reflection_count": trace.get("reflection_count", 0),
+            "time_x_effort_index": round(span["days"] * work_units, 2),
+            "interpretation": "descriptive effort receipt, not a probability of truth or causal proof",
+        },
+    }
+
+
+def quai_evidence_synthesis(query: str, results: list[dict], trace: dict) -> dict | None:
+    if not re.search(r"\bquai\b", query.lower()):
+        return None
+    clauses = {
+        "energy_efficiency": ["energy efficient", "low energy", "energy savings", "energy levels", "energy efficiency"],
+        "incentive_layer": ["reward", "rewards", "tip", "staking", "referral", "receipts", "network"],
+        "lower_variance": ["low variance", "stability", "stable", "volatile", "volatility"],
+        "exploratory_limit": ["in theory", "intuition", "haven't fully", "performance issues", "understand what works"],
+    }
+    support = {}
+    excerpts = []
+    for result in results:
+        text = f"{result.get('title', '')} {result.get('body_excerpt', '')}".lower()
+        distance = result.get("distance")
+        weight = round(1.0 / (1.0 + distance), 4) if distance is not None else 0.5
+        matched = [name for name, terms in clauses.items() if any(term in text for term in terms)]
+        for name in matched:
+            support.setdefault(name, {"document_count": 0, "weight": 0.0})
+            support[name]["document_count"] += 1
+            support[name]["weight"] = round(support[name]["weight"] + weight, 4)
+        if matched and len(excerpts) < 6:
+            excerpts.append({"id": result["id"], "day": result["day"], "weight": weight, "supports": matched, "excerpt": result.get("body_excerpt", "")})
+    if not support.get("energy_efficiency", {}).get("document_count", 0) and not support.get("incentive_layer", {}).get("document_count", 0):
+        return None
+    answer = "a network the archive associates with energy efficiency and lower variance, used as an incentive layer for tips, staking, referrals, and distributed intelligence receipts; the evidence is exploratory and does not establish network performance or investment returns"
     stage_candidate_total = trace.get("stage_candidate_total", 0)
     work_units = stage_candidate_total + trace.get("reflection_count", 0) + trace.get("lexical_count", 0)
     span = result_span(results)

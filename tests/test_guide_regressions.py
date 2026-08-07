@@ -165,6 +165,20 @@ class LiveGuideRegressionTests(unittest.TestCase):
         self.assertIn("human coordination", text)
         self.assertIsNotNone(payload["answer"]["synthesis"])
 
+    def test_live_quai_answer_is_substantive(self):
+        raw = self.curl(
+            "-X", "POST",
+            f"{CANONICAL}/api/guide/search?regression=quai",
+            "-H", "content-type: application/json",
+            "--data", '{"query":"why quai?"}',
+        )
+        payload = json.loads(raw)
+        text = payload["answer"]["text"]
+        self.assertIn("energy efficiency and lower variance", text)
+        self.assertIn("incentive layer", text)
+        self.assertIn("does not establish", text)
+        self.assertIsNotNone(payload["answer"]["synthesis"])
+
     def test_live_page_contains_containment_contract(self):
         html = self.curl(f"{CANONICAL}/guide/?regression=source-contract")
         self.assertIn("assertProjectionContainment", html)
