@@ -285,24 +285,21 @@ def multistage_search(original: str) -> dict:
 def build_search_answer(query: str, results: list[dict], retrieval_mode: str, created_at: int, trace: dict | None = None) -> dict:
     if not results:
         return {
-            "text": "The archive found no connected pieces for this question at this moment. That absence is part of the snapshot, not a zero-confidence answer.",
+            "text": f"0 documents over the available archive reveal a collective answer of no connected piece was retrieved for {query.rstrip('.!?')}.",
             "basis": "multi-stage bounded retrieval returned no matching connection",
             "retrieval_mode": retrieval_mode,
             "generated_at": datetime.fromtimestamp(created_at, timezone.utc).isoformat().replace("+00:00", "Z"),
             "claim_boundary": "No retrieved connection is not proof that the idea is absent from the world; it records only this archive state and retrieval result.",
         }
     span = result_span(results)
-    source_counts = Counter(result["source"] for result in results)
-    source_text = ", ".join(f"{count} {source} pieces" for source, count in source_counts.items())
     if span["start"] and span["end"]:
-        range_text = f"from {span['start']} to {span['end']} ({span['days']} days)"
+        range_text = span["start"] if span["start"] == span["end"] else f"{span['start']} → {span['end']}"
     else:
-        range_text = "within the available archive"
-    lead = results[0]["title"] if results else "no retrieved piece"
-    trace = trace or {}
-    stages = trace.get("stage_count", 1)
+        range_text = "the available archive"
+    lead = str(results[0]["title"]).rstrip(".!?")
+    noun = "document" if len(results) == 1 else "documents"
     return {
-        "text": f"The archive compresses {len(results)} connected pieces {range_text} after {stages} bounded search stages. The strongest retrieved connection is {lead}; the result set contains {source_text}.",
+        "text": f"{len(results)} {noun} over {range_text} reveal a collective answer of {query.rstrip('.!?')} is most strongly connected to {lead}.",
         "basis": "multi-stage retrieval, reflection-derived follow-up queries, distance-band selection, and dated coordinates",
         "retrieval_mode": retrieval_mode,
         "generated_at": datetime.fromtimestamp(created_at, timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -475,7 +472,7 @@ class Handler(BaseHTTPRequestHandler):
                         created_at = int(time.time())
                         question_hash = digest(SERVICE_TOKEN + ":query:" + query.strip().lower())
                         answer = build_search_answer(query.strip(), [], retrieval_mode, created_at, trace)
-                        snapshot = {"snapshot_id": snapshot_id(created_at, question_hash), "created_at": datetime.fromtimestamp(created_at, timezone.utc).isoformat().replace("+00:00", "Z"), "question_hash": question_hash, "answer": answer, "connections": [], "path": [], "date_span": result_span([]), "retrieval_mode": retrieval_mode, "privacy": "raw-question-returned-to-browser; server-stores-question-hash-only"}
+                        snapshot = {"snapshot_id": snapshot_id(created_at, question_hash), "created_at": datetime.fromtimestamp(created_at, timezone.utc).isoformat().replace("+00:00", "Z"), "question_hash": question_hash, "answer": answer, "connections": [], "path": [], "date_span": result_span([]), "retrieval_mode": retrieval_mode, "search_trace": trace, "privacy": "raw-question-returned-to-browser; server-stores-question-hash-only"}
                         with connection() as snapshot_conn:
                             snapshot_conn.execute("INSERT OR REPLACE INTO guide_search_snapshots(snapshot_id, question_hash, created_at, snapshot_json) VALUES (?, ?, ?, ?)", (snapshot["snapshot_id"], question_hash, created_at, json.dumps(snapshot, separators=(",", ":"))))
                             snapshot_conn.commit()
@@ -501,6 +498,7 @@ class Handler(BaseHTTPRequestHandler):
                         "path": path,
                         "date_span": result_span(results),
                         "retrieval_mode": retrieval_mode,
+                        "search_trace": trace,
                         "privacy": "raw-question-returned-to-browser; server-stores-question-hash-only",
                     }
                     with connection() as snapshot_conn:

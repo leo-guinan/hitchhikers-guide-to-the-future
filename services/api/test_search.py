@@ -32,6 +32,17 @@ class MultiStageSearchTests(unittest.TestCase):
         self.assertTrue(all(original in query for query in queries))
         self.assertEqual(len(queries), len(set(queries)))
         self.assertTrue(all(query != original for query in queries))
+    def test_compressed_answer_is_one_shareable_sentence(self):
+        from app import build_search_answer
+        answer = build_search_answer(
+            "crypto",
+            [{"title": "@leo_guinan · 2021-05-27 · tweet 123", "day": "2021-05-27", "source": "Leo Twitter archive"}],
+            "multi-stage-chroma",
+            0,
+            {"stage_count": 6},
+        )
+        self.assertEqual(answer["text"], "1 document over 2021-05-27 reveal a collective answer of crypto is most strongly connected to @leo_guinan · 2021-05-27 · tweet 123.")
+        self.assertEqual(answer["text"].count("."), 1)
 
 
 if __name__ == "__main__":
