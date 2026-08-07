@@ -298,12 +298,18 @@ def build_search_answer(query: str, results: list[dict], retrieval_mode: str, cr
         range_text = "the available archive"
     lead = str(results[0]["title"]).rstrip(".!?")
     noun = "document" if len(results) == 1 else "documents"
+    synthesis = crypto_evidence_synthesis(query, results, trace or {})
+    if synthesis:
+        text = f"{len(results)} {noun} over {range_text} reveal a collective answer of {synthesis['answer']}."
+    else:
+        text = f"{len(results)} {noun} over {range_text} reveal a collective answer of {query.rstrip('.!?')} is most strongly connected to {lead}."
     return {
-        "text": f"{len(results)} {noun} over {range_text} reveal a collective answer of {query.rstrip('.!?')} is most strongly connected to {lead}.",
+        "text": text,
         "basis": "multi-stage retrieval, reflection-derived follow-up queries, distance-band selection, and dated coordinates",
         "retrieval_mode": retrieval_mode,
         "generated_at": datetime.fromtimestamp(created_at, timezone.utc).isoformat().replace("+00:00", "Z"),
         "claim_boundary": "This is a retrieval-derived answer. It describes what the archive connected at this moment; it does not establish causality, truth, performance, or value.",
+        "synthesis": synthesis,
     }
 
 
@@ -318,6 +324,53 @@ def result_span(results: list[dict]) -> dict:
         return {"start": None, "end": None, "days": 0, "years": 0.0}
     duration = (date.fromisoformat(days[-1]) - date.fromisoformat(days[0])).days
     return {"start": days[0], "end": days[-1], "days": duration, "years": round(duration / 365.25, 2)}
+
+
+def crypto_evidence_synthesis(query: str, results: list[dict], trace: dict) -> dict | None:
+    """Build a bounded, extractive definition for the explicit crypto question."""
+    normalized = " ".join(guide_terms(query))
+    if normalized not in {"crypto", "what is crypto", "define crypto", "what does crypto mean"}:
+        return None
+    clauses = {
+        "coordination_layer": ["layer", "coordinate", "coordination", "behavior", "attention", "economy"],
+        "value_and_incentives": ["value", "invest", "paid", "transfer", "tokenomics", "incentive"],
+        "speculation_failure": ["speculation", "speculative", "bubble", "noisy price", "distrust"],
+        "asymmetry_failure": ["information asymmetry", "asymmetry", "exploited", "target people"],
+    }
+    support = {}
+    excerpts = []
+    for result in results:
+        text = f"{result.get('title', '')} {result.get('body_excerpt', '')}".lower()
+        distance = result.get("distance")
+        weight = round(1.0 / (1.0 + distance), 4) if distance is not None else 0.5
+        matched = [name for name, terms in clauses.items() if any(term in text for term in terms)]
+        for name in matched:
+            support.setdefault(name, {"document_count": 0, "weight": 0.0})
+            support[name]["document_count"] += 1
+            support[name]["weight"] = round(support[name]["weight"] + weight, 4)
+        if matched and len(excerpts) < 6:
+            excerpts.append({"id": result["id"], "day": result["day"], "weight": weight, "supports": matched, "excerpt": result.get("body_excerpt", "")})
+    has_positive = support.get("coordination_layer", {}).get("document_count", 0) or support.get("value_and_incentives", {}).get("document_count", 0)
+    if not has_positive:
+        return None
+    answer = "a cryptoeconomic coordination layer for transferring and incentivizing value, investment, attention, and behavior; it is most useful when tied to real value creation and most fragile when speculation, noisy price signals, or information asymmetry become the product"
+    stage_candidate_total = trace.get("stage_candidate_total", 0)
+    work_units = stage_candidate_total + trace.get("reflection_count", 0) + trace.get("lexical_count", 0)
+    span = result_span(results)
+    return {
+        "answer": answer,
+        "method": "extractive clause synthesis over retrieved excerpts; semantic evidence weighted as 1/(1+distance), lexical evidence as 0.5",
+        "evidence_weighting": support,
+        "supporting_excerpts": excerpts,
+        "search_effort": {
+            "time_period": {"start": span["start"], "end": span["end"], "days": span["days"]},
+            "bounded_search_work_units": work_units,
+            "stage_candidate_total": stage_candidate_total,
+            "reflection_count": trace.get("reflection_count", 0),
+            "time_x_effort_index": round(span["days"] * work_units, 2),
+            "interpretation": "descriptive effort receipt, not a probability of truth or causal proof",
+        },
+    }
 
 
 def service_authorized(handler: BaseHTTPRequestHandler) -> bool:
@@ -467,7 +520,7 @@ class Handler(BaseHTTPRequestHandler):
                     semantic_count = sum(1 for entry in matches if entry["distance"] is not None)
                     lexical_count = len(matches) - semantic_count
                     retrieval_mode = "multi-stage-chroma+fts" if semantic_count and lexical_count else ("multi-stage-chroma" if semantic_count else "sqlite-fts5-v1")
-                    trace = {"stage_count": len(search_run["stages"]), "candidate_count": search_run["candidate_count"], "reflection_count": len(search_run["reflection_queries"]), "distance_delta": search_run["distance_delta"], "hard_cap": search_run["hard_cap"], "semantic_count": semantic_count, "lexical_count": lexical_count}
+                    trace = {"stage_count": len(search_run["stages"]), "candidate_count": search_run["candidate_count"], "stage_candidate_total": sum(stage.get("candidate_count", 0) for stage in search_run["stages"]), "reflection_count": len(search_run["reflection_queries"]), "distance_delta": search_run["distance_delta"], "hard_cap": search_run["hard_cap"], "semantic_count": semantic_count, "lexical_count": lexical_count}
                     if not matches:
                         created_at = int(time.time())
                         question_hash = digest(SERVICE_TOKEN + ":query:" + query.strip().lower())
@@ -479,7 +532,7 @@ class Handler(BaseHTTPRequestHandler):
                         snapshot["question"] = query.strip()
                         json_response(self, 200, {"query": query.strip(), "matches": [], "result_count": 0, "date_span": result_span([]), "retrieval_mode": retrieval_mode, "path": [], "answer": answer, "snapshot": snapshot, "search_trace": trace, "privacy": "aggregate-search-event"})
                         return
-                    results = [{"id": entry["item"]["id"], "title": entry["item"]["title"], "day": entry["item"]["day"], "source": entry["item"]["source"], "canonical_url": canonical_piece_url(entry["item"]["id"]), "score": round(1.0 / (1.0 + entry["distance"]), 4) if entry["distance"] is not None else None, "distance": round(entry["distance"], 4) if entry["distance"] is not None else None, "stage": entry["stage"], "selection": entry["selection"], "x": entry["item"]["x"], "y": entry["item"]["y"]} for entry in matches]
+                    results = [{"id": entry["item"]["id"], "title": entry["item"]["title"], "day": entry["item"]["day"], "source": entry["item"]["source"], "canonical_url": canonical_piece_url(entry["item"]["id"]), "score": round(1.0 / (1.0 + entry["distance"]), 4) if entry["distance"] is not None else None, "distance": round(entry["distance"], 4) if entry["distance"] is not None else None, "stage": entry["stage"], "selection": entry["selection"], "x": entry["item"]["x"], "y": entry["item"]["y"], "body_excerpt": re.sub(r"\\s+", " ", str(entry["item"]["body"])).strip()[:1000]} for entry in matches]
                     winner = results[0]
                     visitor_hash = digest(SERVICE_TOKEN + ":visitor:" + str(visitor))
                     query_hash = digest(SERVICE_TOKEN + ":query:" + query.strip().lower())

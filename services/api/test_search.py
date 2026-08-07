@@ -32,6 +32,18 @@ class MultiStageSearchTests(unittest.TestCase):
         self.assertTrue(all(original in query for query in queries))
         self.assertEqual(len(queries), len(set(queries)))
         self.assertTrue(all(query != original for query in queries))
+    def test_crypto_question_gets_evidence_weighted_definition(self):
+        from app import build_search_answer
+        answer = build_search_answer(
+            "what is crypto?",
+            [{"id": "a", "title": "crypto note", "day": "2025-05-22", "source": "archive", "distance": 0.5, "body_excerpt": "Crypto is a layer for real value creation, but speculation creates a noisy price signal and distrust."}],
+            "multi-stage-chroma",
+            0,
+            {"stage_count": 6, "stage_candidate_total": 300, "reflection_count": 5, "lexical_count": 0},
+        )
+        self.assertIn("cryptoeconomic coordination layer", answer["text"])
+        self.assertIn("speculation", answer["text"])
+        self.assertEqual(answer["synthesis"]["search_effort"]["time_x_effort_index"], 0)
     def test_compressed_answer_is_one_shareable_sentence(self):
         from app import build_search_answer
         answer = build_search_answer(
