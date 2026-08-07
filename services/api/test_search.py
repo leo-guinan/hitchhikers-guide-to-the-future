@@ -44,7 +44,20 @@ class MultiStageSearchTests(unittest.TestCase):
         self.assertIn("cryptoeconomic coordination layer", answer["text"])
         self.assertIn("speculation", answer["text"])
         self.assertEqual(answer["synthesis"]["search_effort"]["time_x_effort_index"], 0)
-    def test_compressed_answer_is_one_shareable_sentence(self):
+    def test_ai_question_gets_evidence_weighted_definition(self):
+        from app import build_search_answer
+        answer = build_search_answer(
+            "what is AI?",
+            [{"id": "a", "title": "AI note", "day": "2025-02-16", "source": "archive", "distance": 0.42, "body_excerpt": "AI is a function that transforms inputs into more valuable outputs. It is a tool shaped by human coordination, not an independent entity."}],
+            "multi-stage-chroma",
+            0,
+            {"stage_count": 6, "stage_candidate_total": 300, "reflection_count": 5, "lexical_count": 0},
+        )
+        self.assertIn("transforms inputs into more valuable outputs", answer["text"])
+        self.assertIn("human coordination", answer["text"])
+        self.assertIsNotNone(answer["synthesis"])
+
+
         from app import build_search_answer
         answer = build_search_answer(
             "crypto",

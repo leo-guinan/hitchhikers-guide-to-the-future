@@ -151,6 +151,20 @@ class LiveGuideRegressionTests(unittest.TestCase):
         self.assertGreaterEqual(payload["search_trace"]["stage_count"], 6)
         self.assertIn("synthesis", payload["answer"])
 
+    def test_live_ai_answer_is_substantive(self):
+        raw = self.curl(
+            "-X", "POST",
+            f"{CANONICAL}/api/guide/search?regression=ai",
+            "-H", "content-type: application/json",
+            "--data", '{"query":"what is AI?"}',
+        )
+        payload = json.loads(raw)
+        text = payload["answer"]["text"]
+        self.assertIn("reveal a collective answer of", text)
+        self.assertIn("transforms inputs into more valuable outputs", text)
+        self.assertIn("human coordination", text)
+        self.assertIsNotNone(payload["answer"]["synthesis"])
+
     def test_live_page_contains_containment_contract(self):
         html = self.curl(f"{CANONICAL}/guide/?regression=source-contract")
         self.assertIn("assertProjectionContainment", html)
