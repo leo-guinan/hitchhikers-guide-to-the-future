@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#090811">
@@ -97,7 +98,7 @@
           <p class="gate-number">GATE I / RETURNING TRAVELER</p>
           <h2>Continue your journey</h2>
           <p class="gate-copy">Use the Idea Nexus organizational auth rail. It keeps identity, workspace, and capability boundaries in one place.</p>
-          <a class="button" id="auth-button" href="https://auth.ideanexusventures.com/login?workspace_id=org%3Aidea-nexus&amp;property_id=x%3Amarvin-panics&amp;return_to=https%3A%2F%2Fhitchhikersguidetothefuture.com%2Fenter%2F">Continue with organizational auth&nbsp; →</a>
+          <a class="button" id="auth-button" href="#">Continue with organizational auth&nbsp; →</a>
           <p id="login-status" class="status" aria-live="polite"></p>
           <p class="price-line"><strong>No password.</strong><br>One email. One temporary waymark.</p>
         </article>
@@ -105,7 +106,7 @@
         <article class="gate">
           <p class="gate-number">GATE II / NEW TRAVELER</p>
           <h2>Start your node</h2>
-          <p class="gate-copy">Join the founding membership, then claim permission to create one node of your own.</p>
+          <p class="gate-copy">Join the founding membership, or use the founder account rail if this is your own node.</p>
           <ul class="benefits">
             <li>private access to the host node</li>
             <li>node passport for one personal node</li>
@@ -115,7 +116,7 @@
             <label for="signup-email">Email for your account
               <input id="signup-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
             </label>
-            <button type="submit">Continue to membership</button>
+            <button type="submit">Continue</button>
             <p id="signup-status" class="status" aria-live="polite"></p>
           </form>
           <p class="price-line"><strong>Founding membership.</strong><br>Price and payment rail will be published before the first charge.</p>
@@ -135,10 +136,13 @@
     };
     const params = new URLSearchParams(location.search);
     const handoff = params.get('preview_handoff');
+    const returnTo = params.get('return_to') || '/app/';
+    const authReturn = new URL('/enter/?return_to=' + encodeURIComponent(returnTo), location.origin).toString();
+    document.getElementById('auth-button').href = 'https://auth.ideanexusventures.com/login?workspace_id=org%3Aidea-nexus&property_id=x%3Aleo-guinan&return_to=' + encodeURIComponent(authReturn);
     if (handoff) {
       fetch('/api/auth/redeem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ handoff }) })
         .then((response) => response.ok ? response.json() : response.json().then((body) => Promise.reject(new Error(body.error || 'handoff rejected'))))
-        .then(() => { location.href = '/diary/'; })
+        .then(() => { location.href = returnTo; })
         .catch((error) => announce('login-status', error.message + ' No private session was created.', true));
       history.replaceState({}, '', location.pathname);
     }
@@ -147,6 +151,12 @@
       const email = document.getElementById('signup-email').value.trim();
       announce('signup-status', 'Checking the membership rail…');
       try {
+        if (email.toLowerCase() === 'leo@ideanexusventures.com') {
+          announce('signup-status', 'Redirecting to founder authentication…');
+          const founderReturn = new URL('/enter/?return_to=' + encodeURIComponent('/app/'), location.origin).toString();
+          location.href = 'https://auth.ideanexusventures.com/login?workspace_id=org%3Aidea-nexus&property_id=x%3Aleo-guinan&return_to=' + encodeURIComponent(founderReturn);
+          return;
+        }
         const response = await fetch('/api/payments/checkout', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },

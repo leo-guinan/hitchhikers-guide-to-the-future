@@ -11,7 +11,7 @@ HGF returning-traveler access redirects to:
 with:
 
 - `workspace_id=org:idea-nexus`
-- `property_id=x:marvin-panics`
+- `property_id=x:leo-guinan`
 - `return_to=https://hitchhikersguidetothefuture.com/enter/`
 
 The auth service returns a short-lived `preview_handoff`; the HGF Pages relay sends it to the HGF API, which redeems it server-to-server and creates an opaque, node-scoped application session. The browser receives only an HTTP-only `hgf_session` cookie. The preview claim is never used as browser authority.
@@ -30,10 +30,14 @@ Routes:
 
 - `GET /health`
 - protected `POST /v1/checkout/sessions`
+- protected `GET /v1/campaigns/mincoin`
+- protected `POST /v1/campaigns/mincoin/checkout`
 - protected `GET /v1/entitlements/{subject_id}`
 - signed `POST /v1/webhooks/stripe`
 
 The HGF Cloudflare Pages Function at `/api/payments/checkout` is the browser-facing relay. It keeps `PAYMENTS_SERVICE_TOKEN` in a Pages secret and forwards only approved HGF-origin requests to the payment service.
+
+The Mincoin page uses `/api/mincoin/status` and `/api/mincoin/checkout`, which relay to the protected Mincoin routes above. The VPS creates one-time Stripe Checkout Sessions with a buyer-selected USD amount; the verified total is calculated only from signed, paid `checkout.session.completed` events carrying `campaign_id=mincoin`.
 
 Checkout remains fail-closed until `HGF_STRIPE_PRICE_ID` is configured in the Pages project. A missing price returns `503 membership price is not configured`; it cannot create a charge. Stripe secrets and the payment service token remain server-side.
 

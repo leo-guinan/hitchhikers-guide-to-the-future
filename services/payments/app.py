@@ -24,6 +24,7 @@ HOST = os.getenv("PAYMENTS_HOST", "127.0.0.1")
 PORT = int(os.getenv("PAYMENTS_PORT", "8845"))
 DATA_DIR = Path(os.getenv("PAYMENTS_DATA_DIR", "/var/lib/ideanexus-payments"))
 DB_PATH = DATA_DIR / "payments.sqlite3"
+MINCOIN_CAP_CENTS = int(os.getenv("MINCOIN_CAP_CENTS", "5000000"))
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "").strip()
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
 SERVICE_TOKEN = os.getenv("PAYMENTS_SERVICE_TOKEN", "").strip()
@@ -50,6 +51,15 @@ def db() -> sqlite3.Connection:
             status TEXT NOT NULL,
             payload_json TEXT NOT NULL,
             received_at INTEGER NOT NULL
+        )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS mincoin_reservations (
+            contribution_id TEXT PRIMARY KEY,
+            stripe_session_id TEXT,
+            amount_cents INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            created_at INTEGER NOT NULL
         )"""
     )
     conn.commit()
@@ -134,6 +144,139 @@ def stripe_checkout(req: dict) -> dict:
     return {"id": result.get("id"), "url": result.get("url"), "status": result.get("status")}
 
 
+def _paid_mincoin_cents(conn: sqlite3.Connection) -> int:
+    raised_cents = 0
+    rows = conn.execute(
+        "SELECT payload_json FROM payment_events "
+        "WHERE event_type = 'checkout.session.completed'"
+    ).fetchall()
+    for row in rows:
+        try:
+            event = json.loads(row["payload_json"])
+            obj = event.get("data", {}).get("object", {})
+            metadata = obj.get("metadata", {})
+            if (
+                metadata.get("campaign_id") == "mincoin"
+                and obj.get("payment_status") == "paid"
+                and isinstance(obj.get("amount_total"), int)
+            ):
+                raised_cents += obj["amount_total"]
+        except (TypeError, ValueError, AttributeError):
+            continue
+    return raised_cents
+
+
+def mincoin_summary() -> dict:
+    now = int(time.time())
+    with db() as conn:
+        conn.execute(
+            "UPDATE mincoin_reservations SET status = 'expired' "
+            "WHERE status IN ('pending', 'open') AND created_at < ?",
+            (now - 24 * 60 * 60,),
+        )
+        raised_cents = _paid_mincoin_cents(conn)
+        reserved_cents = conn.execute(
+            "SELECT COALESCE(SUM(amount_cents), 0) FROM mincoin_reservations "
+            "WHERE status IN ('pending', 'open')"
+        ).fetchone()[0]
+    return {
+        "campaign_id": "mincoin",
+        "cap_cents": MINCOIN_CAP_CENTS,
+        "raised_cents": raised_cents,
+        "reserved_cents": reserved_cents,
+        "available_cents": max(0, MINCOIN_CAP_CENTS - raised_cents - reserved_cents),
+        "status": (
+            "closed" if raised_cents >= MINCOIN_CAP_CENTS
+            else "full_pending" if raised_cents + reserved_cents >= MINCOIN_CAP_CENTS
+            else "open"
+        ),
+    }
+
+
+def reserve_mincoin_amount(contribution_id: str, amount_cents: int) -> None:
+    now = int(time.time())
+    with db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            "UPDATE mincoin_reservations SET status = 'expired' "
+            "WHERE status IN ('pending', 'open') AND created_at < ?",
+            (now - 24 * 60 * 60,),
+        )
+        raised_cents = _paid_mincoin_cents(conn)
+        reserved_cents = conn.execute(
+            "SELECT COALESCE(SUM(amount_cents), 0) FROM mincoin_reservations "
+            "WHERE status IN ('pending', 'open')"
+        ).fetchone()[0]
+        if raised_cents + reserved_cents + amount_cents > MINCOIN_CAP_CENTS:
+            raise ValueError("amount exceeds remaining Mincoin capacity")
+        conn.execute(
+            "INSERT INTO mincoin_reservations "
+            "(contribution_id, stripe_session_id, amount_cents, status, created_at) "
+            "VALUES (?, NULL, ?, 'pending', ?)",
+            (contribution_id, amount_cents, now),
+        )
+
+
+def update_mincoin_reservation(contribution_id: str, status: str, session_id: str | None = None) -> None:
+    if status not in {"open", "completed", "expired", "failed"}:
+        raise ValueError("invalid Mincoin reservation status")
+    with db() as conn:
+        conn.execute(
+            "UPDATE mincoin_reservations SET status = ?, stripe_session_id = COALESCE(?, stripe_session_id) "
+            "WHERE contribution_id = ?",
+            (status, session_id, contribution_id),
+        )
+
+
+def mincoin_contribution_checkout(req: dict) -> dict:
+    if not STRIPE_SECRET_KEY:
+        raise RuntimeError("Stripe is not configured")
+    amount_cents = req.get("amount_cents")
+    if not isinstance(amount_cents, int) or amount_cents < 1:
+        raise ValueError("amount_cents must be a positive integer")
+    success_url = safe_return_url(req.get("success_url"))
+    cancel_url = safe_return_url(req.get("cancel_url"))
+    contribution_id = req.get("contribution_id")
+    if not isinstance(contribution_id, str) or not contribution_id.strip():
+        raise ValueError("contribution_id is required")
+    reserve_mincoin_amount(contribution_id, amount_cents)
+    fields = {
+        "mode": "payment",
+        "line_items[0][price_data][currency]": "usd",
+        "line_items[0][price_data][unit_amount]": str(amount_cents),
+        "line_items[0][price_data][product_data][name]": "Mincoin contribution",
+        "line_items[0][price_data][product_data][description]": "A bounded contribution to the Mincoin experiment.",
+        "line_items[0][quantity]": "1",
+        "submit_type": "donate",
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "client_reference_id": contribution_id,
+        "metadata[campaign_id]": "mincoin",
+        "metadata[contribution_id]": contribution_id,
+    }
+    request = urllib.request.Request(
+        "https://api.stripe.com/v1/checkout/sessions",
+        data=urllib.parse.urlencode(fields).encode(),
+        headers={
+            "Authorization": f"Bearer {STRIPE_SECRET_KEY}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            result = json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        update_mincoin_reservation(contribution_id, "failed")
+        detail = exc.read(512).decode(errors="replace")
+        raise RuntimeError(f"Stripe rejected contribution checkout ({exc.code}): {detail}") from exc
+    except (urllib.error.URLError, TimeoutError):
+        update_mincoin_reservation(contribution_id, "failed")
+        raise RuntimeError("Stripe contribution checkout could not be reached")
+    update_mincoin_reservation(contribution_id, "open", result.get("id"))
+    return {"id": result.get("id"), "url": result.get("url"), "status": result.get("status")}
+
+
 def verify_signature(raw: bytes, signature: str | None) -> bool:
     if not STRIPE_WEBHOOK_SECRET or not signature:
         return False
@@ -175,6 +318,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             json_response(self, 200, {"subject_id": self.path.rsplit("/", 1)[-1], "entitlements": []})
             return
+        if self.path == "/v1/campaigns/mincoin":
+            if not authorized(self):
+                json_response(self, 401, {"error": "service authorization required"})
+                return
+            json_response(self, 200, mincoin_summary())
+            return
         json_response(self, 404, {"error": "not found"})
 
     def do_POST(self) -> None:
@@ -184,6 +333,18 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 checkout = stripe_checkout(read_json(self))
+                json_response(self, 201, {"checkout": checkout})
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+            except RuntimeError as exc:
+                json_response(self, 503, {"error": str(exc)})
+            return
+        if self.path == "/v1/campaigns/mincoin/checkout":
+            if not authorized(self):
+                json_response(self, 401, {"error": "service authorization required"})
+                return
+            try:
+                checkout = mincoin_contribution_checkout(read_json(self))
                 json_response(self, 201, {"checkout": checkout})
             except ValueError as exc:
                 json_response(self, 400, {"error": str(exc)})
@@ -207,6 +368,12 @@ class Handler(BaseHTTPRequestHandler):
                         (event_id, event_type, metadata.get("subject_id"), metadata.get("node_id"), "received", raw.decode(), int(time.time())),
                     )
                     conn.commit()
+                if metadata.get("campaign_id") == "mincoin":
+                    contribution_id = metadata.get("contribution_id")
+                    if isinstance(contribution_id, str) and event_type == "checkout.session.completed" and obj.get("payment_status") == "paid":
+                        update_mincoin_reservation(contribution_id, "completed", obj.get("id"))
+                    elif isinstance(contribution_id, str) and event_type in {"checkout.session.expired", "checkout.session.async_payment_failed"}:
+                        update_mincoin_reservation(contribution_id, "expired", obj.get("id"))
                 json_response(self, 200, {"received": True, "event_id": event_id})
             except (ValueError, KeyError, sqlite3.Error):
                 json_response(self, 400, {"error": "invalid webhook payload"})

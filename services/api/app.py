@@ -35,6 +35,8 @@ CHROMA_DATABASE = os.getenv("CHROMA_DATABASE", "").strip()
 CHROMA_HOST = os.getenv("CHROMA_HOST", "api.trychroma.com").strip()
 CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "hgf_medium_archive_v1").strip()
 GUIDE_PUBLIC_URL = os.getenv("HGF_GUIDE_PUBLIC_URL", "https://guide.hitchhikersguidetothefuture.com").rstrip("/")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+CHAT_MODEL = os.getenv("HGF_CHAT_MODEL", "deepseek/deepseek-v4-flash-0731").strip()
 SESSION_TTL = 60 * 60 * 24 * 14
 SEARCH_CANDIDATE_LIMIT = 50
 SEARCH_REFLECTION_QUERIES = 3
@@ -60,6 +62,10 @@ def connection() -> sqlite3.Connection:
             revoked_at INTEGER
         )"""
     )
+    try:
+        conn.execute("ALTER TABLE sessions ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
     conn.execute(
         """CREATE TABLE IF NOT EXISTS diary_entries (
             id TEXT PRIMARY KEY,
@@ -478,6 +484,37 @@ def json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) -
     handler.wfile.write(raw)
 
 
+def chat_completion(message: str, context: dict) -> dict:
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError("AI chat is not configured")
+    selected = context.get("selected") if isinstance(context, dict) else None
+    editor = context.get("editor", "") if isinstance(context, dict) else ""
+    source = ""
+    if isinstance(selected, dict):
+        source = f"Selected piece: {selected.get('title', '')}\n{selected.get('body', '')[:12000]}"
+    prompt = (
+        "You are the private thinking partner inside The Hitchhiker's Guide to the Future. "
+        "Be precise, distinguish evidence from interpretation, and do not invent archive facts. "
+        "Help the writer develop the next useful thought.\n\n"
+        f"{source}\n\nWorking page:\n{str(editor)[:12000]}\n\nQuestion:\n{message[:4000]}"
+    )
+    request = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=json.dumps({"model": CHAT_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2, "max_tokens": 900}).encode(),
+        headers={"content-type": "application/json", "authorization": f"Bearer {OPENROUTER_API_KEY}", "http-referer": GUIDE_PUBLIC_URL, "x-title": "Hitchhiker's Guide to the Future"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            payload = json.loads(response.read())
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise RuntimeError("AI provider unavailable") from exc
+    choices = payload.get("choices") or []
+    if not choices or not choices[0].get("message", {}).get("content"):
+        raise RuntimeError("AI provider returned no message")
+    return {"message": choices[0]["message"]["content"], "model": payload.get("model", CHAT_MODEL), "usage": payload.get("usage", {})}
+
+
 def read_json(handler: BaseHTTPRequestHandler) -> dict:
     length = int(handler.headers.get("Content-Length", "0"))
     if length <= 0 or length > 120_000:
@@ -562,7 +599,7 @@ class Handler(BaseHTTPRequestHandler):
             json_response(self, 401, {"error": "session missing or expired"})
             return
         if self.path == "/v1/session":
-            json_response(self, 200, {"actor_id": row["actor_id"], "workspace_id": row["workspace_id"], "property_id": row["property_id"], "node_id": "hgf:guide"})
+            json_response(self, 200, {"actor_id": row["actor_id"], "email": row["email"], "workspace_id": row["workspace_id"], "property_id": row["property_id"], "node_id": "hgf:guide"})
             return
         if self.path == "/v1/diary/entries":
             with connection() as conn:
@@ -589,13 +626,29 @@ class Handler(BaseHTTPRequestHandler):
                 now = int(time.time())
                 with connection() as conn:
                     conn.execute(
-                        "INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
-                        (digest(token), "connection:" + identity["connection_id"], identity["workspace_id"], identity["property_id"], identity["connection_id"], now, now + SESSION_TTL),
+                        "INSERT INTO sessions (token_hash, actor_id, workspace_id, property_id, connection_id, created_at, expires_at, revoked_at, email) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)",
+                        (digest(token), "connection:" + identity["connection_id"], identity["workspace_id"], identity["property_id"], identity["connection_id"], now, now + SESSION_TTL, identity.get("email", "")),
                     )
                     conn.commit()
                 json_response(self, 200, {"session_token": token, "expires_in": SESSION_TTL, "node_id": "hgf:guide"})
             except (ValueError, RuntimeError, sqlite3.Error) as exc:
                 json_response(self, 400, {"error": str(exc)})
+            return
+        if self.path == "/v1/chat":
+            token = self.headers.get("X-HGF-Session", "")
+            if session_row(token) is None:
+                json_response(self, 401, {"error": "session missing or expired"})
+                return
+            try:
+                body = read_json(self)
+                message = body.get("message")
+                if not isinstance(message, str) or not message.strip() or len(message) > 4000:
+                    raise ValueError("message must be 1-4000 characters")
+                result = chat_completion(message.strip(), body.get("context", {}))
+                json_response(self, 200, result)
+            except (ValueError, RuntimeError) as exc:
+                status = 503 if "configured" in str(exc) or "provider" in str(exc) else 400
+                json_response(self, status, {"error": str(exc)})
             return
         if self.path == "/v1/guide/search":
             try:

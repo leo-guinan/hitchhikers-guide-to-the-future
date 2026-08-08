@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Mincoin: a capped contribution experiment for the next useful capability.">
+  <title>MINCOIN / bounded belief</title>
+  <style>
+    :root{color-scheme:dark;--bg:#080a0d;--panel:#10151b;--line:#29343d;--ink:#eef2ef;--muted:#9ba7a5;--gold:#e1b75b;--cyan:#79d9d0;--red:#ff938a}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -10%,#1a252c 0,#080a0d 48%);color:var(--ink);font:16px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+    main{width:min(960px,calc(100% - 36px));margin:auto;padding:68px 0 86px}.eyebrow,.label{color:var(--gold);font:11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase}
+    h1{max-width:760px;margin:15px 0 22px;font-size:clamp(3.2rem,10vw,8.5rem);line-height:.88;letter-spacing:-.09em}.lede{max-width:700px;color:var(--muted);font-size:clamp(1.1rem,2.5vw,1.45rem)}
+    .cap{display:grid;grid-template-columns:1fr auto;gap:30px;align-items:end;margin:55px 0 18px;padding:24px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.cap strong{display:block;color:var(--gold);font:clamp(2.5rem,7vw,5rem)/.95 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.08em}.cap-side{text-align:right;color:var(--muted);font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.meter{height:10px;margin:18px 0 12px;border:1px solid var(--line);background:#050608}.meter span{display:block;width:0;height:100%;background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .4s ease}.state{min-height:24px;margin:0 0 34px;color:var(--muted);font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}section{background:linear-gradient(145deg,rgba(22,30,37,.95),rgba(11,14,18,.95));border:1px solid var(--line);padding:26px}h2{margin:6px 0 12px;font-size:1.4rem;letter-spacing:-.03em}p{color:var(--muted)}.wide{grid-column:1/-1}.promise{border-left:3px solid var(--gold)}.promise strong{color:var(--ink)}.warning{color:#d8c18a}
+    form{display:flex;gap:10px;align-items:end;margin-top:22px}label{display:grid;gap:6px;color:var(--muted);font:11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em}input{width:150px;padding:12px;border:1px solid #40505a;background:#090c10;color:var(--ink);font:18px ui-monospace,SFMono-Regular,Menlo,monospace}.button{border:1px solid var(--gold);padding:12px 15px;background:var(--gold);color:var(--bg);font-weight:700;cursor:pointer}.button:disabled{cursor:wait;opacity:.65}.error{color:var(--red);min-height:24px}.wallet{display:grid;gap:10px;margin-top:18px}.wallet-row{display:grid;grid-template-columns:100px 1fr auto;gap:10px;align-items:center;padding:12px;border:1px solid #303b44;background:#090c10}.wallet-row b{color:var(--cyan);font:11px ui-monospace,SFMono-Regular,Menlo,monospace}code{color:var(--ink);font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.copy{border:0;padding:6px 0;color:var(--cyan);background:none;cursor:pointer;font:11px ui-monospace,SFMono-Regular,Menlo,monospace}footer{margin-top:35px;color:#73807d;font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+    @media(max-width:700px){main{padding-top:42px}.cap{grid-template-columns:1fr}.cap-side{text-align:left}.grid{grid-template-columns:1fr}.wide{grid-column:auto}.wallet-row{grid-template-columns:1fr}form{align-items:stretch;flex-direction:column}input{width:100%}}
+  </style>
+</head>
+<body>
+  <main id="page">
+    <div class="eyebrow">MINCOIN / bounded belief</div>
+    <h1>A small raise for the next useful thing.</h1>
+    <p class="lede">This is a capped experiment in belief. Contributions help make the next capability, observation, or piece of public work cheaper. There is no menu of services. The aim is maximum help for any amount.</p>
+
+    <div class="cap"><div><span class="label">Hard ceiling</span><strong>$50,000</strong></div><div class="cap-side" id="raised">verified total pending</div></div>
+    <div class="meter" role="progressbar" aria-label="Mincoin funding progress" aria-valuemin="0" aria-valuemax="50000" aria-valuenow="0"><span id="meterFill"></span></div>
+    <p class="state" id="state">Loading the verified total. The cap is real; the number is not being guessed.</p>
+
+    <div class="grid">
+      <section>
+        <div class="label">Fiat rail</div><h2>Pay what you want</h2>
+        <p>Choose an amount. Stripe handles checkout; this page never receives card details. Only a paid Stripe webhook moves the verified total.</p>
+        <form id="checkoutForm"><label>USD amount<input id="amount" type="number" min="0.01" max="50000" step="0.01" value="42" required></label><button class="button" type="submit">Continue to Stripe ↗</button></form><p class="error" id="checkoutError" role="alert"></p>
+      </section>
+      <section>
+        <div class="label">Crypto rails</div><h2>Use the network you already use</h2><p>Copy the address carefully. The page does not ask for a seed phrase, private key, or wallet connection.</p>
+        <div class="wallet"><div class="wallet-row"><b>ETH</b><code>0x0BE197c794575579f2f238a68eDf2FC5F92817aC</code><button class="copy" data-copy="0x0BE197c794575579f2f238a68eDf2FC5F92817aC">copy</button></div><div class="wallet-row"><b>SOL</b><code>FFAdvcr2CUPbaQSypK3c8WfQo3SuyBh5YKrtzZRSvg34</code><button class="copy" data-copy="FFAdvcr2CUPbaQSypK3c8WfQo3SuyBh5YKrtzZRSvg34">copy</button></div><div class="wallet-row"><b>QUAI / CYPRUS-1</b><code>0x005A3560C44e506626A26352466429cC963F9fB7</code><button class="copy" data-copy="0x005A3560C44e506626A26352466429cC963F9fB7">copy</button></div></div><!-- # git-secret-ignore public receiving addresses, not credentials -->
+      </section>
+      <section class="wide promise"><div class="label">The conditional promise</div><h2>What this may become</h2><p><strong>If the product launches successfully and a pre-seed raise happens,</strong> we intend to work out a legally valid mechanism under which this early support could become a stock interest and a dividend participation. That mechanism does not exist yet. Nothing here is stock, a dividend, a guaranteed return, or a completed securities offering.</p><p><strong>If that future does not materialize,</strong> the contribution becomes part of the story of belief and a promise of future work when Leo can be helpful. That promise is intentionally broad: maximum useful help for any amount, not a specific service package.</p><p class="warning">We are still figuring out the legal mechanism, eligibility, documentation, tax treatment, and custody/settlement rules. Do not contribute money you cannot afford to lose.</p></section>
+      <section class="wide"><div class="label">The cap is a boundary</div><h2>When $50,000 is verified, this page ends.</h2><p>The verified funding surface stops at the cap. No overflow round. No quiet extension. The final state is a small receipt saying the experiment is closed.</p></section>
+    </div>
+    <footer>MINCOIN is an exploratory funding page, not legal, tax, investment, or financial advice. The intended future mechanism is unresolved and must be reviewed before any ownership or dividend claim is made.</footer>
+  </main>
+  <script>
+    const CAP=5000000, raised=document.querySelector('#raised'), state=document.querySelector('#state'), fill=document.querySelector('#meterFill'), progress=document.querySelector('[role="progressbar"]'), form=document.querySelector('#checkoutForm'), error=document.querySelector('#checkoutError');
+    const money=c=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(c/100);
+    function closePage(){document.documentElement.innerHTML='<head><title>MINCOIN / closed</title></head><body style="margin:0;background:#080a0d;color:#eef2ef;font:16px/1.6 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh"><main style="max-width:620px;padding:32px"><p style="color:#e1b75b;font:11px monospace;letter-spacing:.14em">MINCOIN / CLOSED</p><h1>The cap was reached.</h1><p>This contribution page has destroyed its funding surface. The final receipt and future work, if any, will be published separately.</p></main></body>'}
+    async function loadStatus(){try{const r=await fetch('/api/mincoin/status');const d=await r.json();if(!r.ok)throw Error(d.error||`status ${r.status}`);if(d.status==='closed'||d.raised_cents>=CAP)return closePage();const pct=Math.min(100,d.raised_cents/CAP*100);raised.textContent=`${money(d.raised_cents)} verified`;fill.style.width=`${pct}%`;progress.setAttribute('aria-valuenow',d.raised_cents/100);if(d.status!=='open'){state.textContent='The cap is full or has closed; new Stripe checkouts are disabled.';form.querySelector('button').disabled=true}else{state.textContent='Verified total loaded. The cap is enforced by the VPS payment ledger.'}}catch(e){state.textContent='Funding state unavailable. Stripe checkout is disabled until the cap tracker is reachable.';form.querySelector('button').disabled=true}}
+    form.addEventListener('submit',async e=>{e.preventDefault();error.textContent='';const amount=Number(document.querySelector('#amount').value), cents=Math.round(amount*100);if(!Number.isInteger(cents)||cents<1||cents>CAP){error.textContent='Enter an amount from $0.01 to $50,000.';return}const button=form.querySelector('button');button.disabled=true;button.textContent='Opening Stripe…';try{const r=await fetch('/api/mincoin/checkout',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({amount_cents:cents})});const d=await r.json();if(!r.ok)throw Error(d.error||`checkout ${r.status}`);if(!d.checkout?.url)throw Error('Stripe did not return a checkout URL');location.href=d.checkout.url}catch(err){error.textContent=err.message;button.disabled=false;button.textContent='Continue to Stripe ↗'}});
+    document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',async()=>{await navigator.clipboard.writeText(b.dataset.copy);const old=b.textContent;b.textContent='copied';setTimeout(()=>b.textContent=old,1400)}));loadStatus();
+  </script>
+</body>
+</html>
