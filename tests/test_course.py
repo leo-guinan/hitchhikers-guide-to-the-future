@@ -22,7 +22,7 @@ class CourseRegressionTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r'class="step(?: active)?"', self.html)), 7)
         self.assertIn("step 01 / install the rail", self.html.lower())
         self.assertLess(self.html.lower().index("install kipper first"), self.html.lower().index("humanpower is the case study"))
-        self.assertIn("chromewebstore.google.com", self.html)
+        self.assertIn("kipper.money", self.html)
 
     def test_course_requires_explicit_local_actions(self):
         self.assertIn("id=\"kipperCheck\"", self.html)
