@@ -62,6 +62,24 @@ def db() -> sqlite3.Connection:
             created_at INTEGER NOT NULL
         )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS mincoin_overflow (
+            overflow_id TEXT PRIMARY KEY,
+            chain TEXT NOT NULL,
+            tx_hash TEXT NOT NULL,
+            asset TEXT NOT NULL,
+            amount_native TEXT NOT NULL,
+            confirmations INTEGER NOT NULL,
+            observed_at TEXT NOT NULL,
+            status TEXT NOT NULL,
+            usd_value_cents INTEGER,
+            valuation_source TEXT,
+            evidence_url TEXT,
+            reviewed_by TEXT,
+            created_at INTEGER NOT NULL,
+            UNIQUE(chain, tx_hash, asset)
+        )"""
+    )
     conn.commit()
     return conn
 
@@ -166,6 +184,25 @@ def _paid_mincoin_cents(conn: sqlite3.Connection) -> int:
     return raised_cents
 
 
+def _overflow_summary(conn: sqlite3.Connection) -> dict:
+    verified_cents = conn.execute(
+        "SELECT COALESCE(SUM(usd_value_cents), 0) FROM mincoin_overflow "
+        "WHERE status = 'verified' AND usd_value_cents IS NOT NULL"
+    ).fetchone()[0]
+    verified_count = conn.execute(
+        "SELECT COUNT(*) FROM mincoin_overflow WHERE status = 'verified'"
+    ).fetchone()[0]
+    unpriced_count = conn.execute(
+        "SELECT COUNT(*) FROM mincoin_overflow "
+        "WHERE status IN ('observed', 'verified') AND usd_value_cents IS NULL"
+    ).fetchone()[0]
+    return {
+        "overflow_reserve_cents": verified_cents,
+        "overflow_verified_count": verified_count,
+        "overflow_unpriced_count": unpriced_count,
+    }
+
+
 def mincoin_summary() -> dict:
     now = int(time.time())
     with db() as conn:
@@ -179,17 +216,96 @@ def mincoin_summary() -> dict:
             "SELECT COALESCE(SUM(amount_cents), 0) FROM mincoin_reservations "
             "WHERE status IN ('pending', 'open')"
         ).fetchone()[0]
+        overflow = _overflow_summary(conn)
     return {
         "campaign_id": "mincoin",
         "cap_cents": MINCOIN_CAP_CENTS,
         "raised_cents": raised_cents,
         "reserved_cents": reserved_cents,
         "available_cents": max(0, MINCOIN_CAP_CENTS - raised_cents - reserved_cents),
+        **overflow,
         "status": (
             "closed" if raised_cents >= MINCOIN_CAP_CENTS
             else "full_pending" if raised_cents + reserved_cents >= MINCOIN_CAP_CENTS
             else "open"
         ),
+    }
+
+
+def record_mincoin_overflow(req: dict) -> dict:
+    allowed_chains = {"base", "ethereum", "solana", "polygon", "quai"}
+    chain = req.get("chain")
+    tx_hash = req.get("tx_hash")
+    asset = req.get("asset")
+    amount_native = req.get("amount_native")
+    observed_at = req.get("observed_at")
+    confirmations = req.get("confirmations", 0)
+    status = req.get("status", "observed")
+    if chain not in allowed_chains:
+        raise ValueError("chain is not supported")
+    if not isinstance(tx_hash, str) or not tx_hash.strip() or len(tx_hash) > 256:
+        raise ValueError("tx_hash is required")
+    if not isinstance(asset, str) or not asset.strip() or len(asset) > 32:
+        raise ValueError("asset is required")
+    if (
+        not isinstance(amount_native, str)
+        or not amount_native.strip()
+        or not amount_native.replace(".", "", 1).isdigit()
+    ):
+        raise ValueError("amount_native must be a non-negative decimal string")
+    if not isinstance(observed_at, str) or not observed_at.strip():
+        raise ValueError("observed_at is required")
+    if not isinstance(confirmations, int) or confirmations < 0:
+        raise ValueError("confirmations must be a non-negative integer")
+    if status not in {"observed", "verified"}:
+        raise ValueError("status must be observed or verified")
+    usd_value_cents = req.get("usd_value_cents")
+    valuation_source = req.get("valuation_source")
+    evidence_url = req.get("evidence_url")
+    reviewed_by = req.get("reviewed_by")
+    if status == "verified":
+        if not isinstance(usd_value_cents, int) or usd_value_cents < 0:
+            raise ValueError("verified overflow requires usd_value_cents")
+        if not isinstance(valuation_source, str) or not valuation_source.strip():
+            raise ValueError("verified overflow requires valuation_source")
+        if not isinstance(evidence_url, str) or not evidence_url.strip():
+            raise ValueError("verified overflow requires evidence_url")
+        if not isinstance(reviewed_by, str) or not reviewed_by.strip():
+            raise ValueError("verified overflow requires reviewed_by")
+    overflow_id = hashlib.sha256(f"{chain}:{tx_hash}:{asset}".encode()).hexdigest()
+    with db() as conn:
+        existing = conn.execute(
+            "SELECT * FROM mincoin_overflow WHERE overflow_id = ?", (overflow_id,)
+        ).fetchone()
+        if existing is None:
+            conn.execute(
+                "INSERT INTO mincoin_overflow VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    overflow_id, chain, tx_hash, asset, amount_native, confirmations,
+                    observed_at, status, usd_value_cents, valuation_source, evidence_url,
+                    reviewed_by, int(time.time()),
+                ),
+            )
+        elif status == "verified" and existing["status"] != "verified":
+            conn.execute(
+                "UPDATE mincoin_overflow SET status = 'verified', usd_value_cents = ?, "
+                "valuation_source = ?, evidence_url = ?, reviewed_by = ?, confirmations = ? "
+                "WHERE overflow_id = ?",
+                (usd_value_cents, valuation_source, evidence_url, reviewed_by, confirmations, overflow_id),
+            )
+        row = conn.execute(
+            "SELECT * FROM mincoin_overflow WHERE overflow_id = ?", (overflow_id,)
+        ).fetchone()
+    return {
+        "overflow_id": overflow_id,
+        "chain": row["chain"],
+        "tx_hash": row["tx_hash"],
+        "asset": row["asset"],
+        "amount_native": row["amount_native"],
+        "confirmations": row["confirmations"],
+        "observed_at": row["observed_at"],
+        "status": row["status"],
+        "usd_value_cents": row["usd_value_cents"],
     }
 
 
@@ -350,6 +466,18 @@ class Handler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
             except RuntimeError as exc:
                 json_response(self, 503, {"error": str(exc)})
+            return
+        if self.path == "/v1/campaigns/mincoin/overflow":
+            if not authorized(self):
+                json_response(self, 401, {"error": "service authorization required"})
+                return
+            try:
+                overflow = record_mincoin_overflow(read_json(self))
+                json_response(self, 201, {"overflow": overflow, "accounting": "reserve_not_cap"})
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+            except sqlite3.Error:
+                json_response(self, 409, {"error": "overflow receipt conflicts with an existing record"})
             return
         if self.path == "/v1/webhooks/stripe":
             raw = self.rfile.read(int(self.headers.get("Content-Length", "0")))
