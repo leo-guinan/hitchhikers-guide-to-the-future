@@ -80,6 +80,17 @@ def db() -> sqlite3.Connection:
             UNIQUE(chain, tx_hash, asset)
         )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS mincoin_external_contributions (
+            contribution_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            amount_cents INTEGER NOT NULL,
+            contributor_count INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            evidence_ref TEXT NOT NULL,
+            recorded_at INTEGER NOT NULL
+        )"""
+    )
     conn.commit()
     return conn
 
@@ -184,6 +195,21 @@ def _paid_mincoin_cents(conn: sqlite3.Connection) -> int:
     return raised_cents
 
 
+def _external_mincoin_cents(conn: sqlite3.Connection) -> int:
+    return conn.execute(
+        "SELECT COALESCE(SUM(amount_cents), 0) FROM mincoin_external_contributions "
+        "WHERE status = 'recorded'"
+    ).fetchone()[0]
+
+
+def _mincoin_contributor_count(conn: sqlite3.Connection) -> int:
+    external = conn.execute(
+        "SELECT COALESCE(SUM(contributor_count), 0) FROM mincoin_external_contributions "
+        "WHERE status = 'recorded'"
+    ).fetchone()[0]
+    return external
+
+
 def _overflow_summary(conn: sqlite3.Connection) -> dict:
     verified_cents = conn.execute(
         "SELECT COALESCE(SUM(usd_value_cents), 0) FROM mincoin_overflow "
@@ -211,7 +237,10 @@ def mincoin_summary() -> dict:
             "WHERE status IN ('pending', 'open') AND created_at < ?",
             (now - 24 * 60 * 60,),
         )
-        raised_cents = _paid_mincoin_cents(conn)
+        stripe_raised_cents = _paid_mincoin_cents(conn)
+        external_raised_cents = _external_mincoin_cents(conn)
+        raised_cents = stripe_raised_cents + external_raised_cents
+        contributor_count = _mincoin_contributor_count(conn)
         reserved_cents = conn.execute(
             "SELECT COALESCE(SUM(amount_cents), 0) FROM mincoin_reservations "
             "WHERE status IN ('pending', 'open')"
@@ -221,6 +250,9 @@ def mincoin_summary() -> dict:
         "campaign_id": "mincoin",
         "cap_cents": MINCOIN_CAP_CENTS,
         "raised_cents": raised_cents,
+        "stripe_raised_cents": stripe_raised_cents,
+        "external_raised_cents": external_raised_cents,
+        "contributor_count": contributor_count,
         "reserved_cents": reserved_cents,
         "available_cents": max(0, MINCOIN_CAP_CENTS - raised_cents - reserved_cents),
         **overflow,
@@ -230,6 +262,35 @@ def mincoin_summary() -> dict:
             else "open"
         ),
     }
+
+
+def record_mincoin_external(req: dict) -> dict:
+    contribution_id = req.get("contribution_id")
+    source = req.get("source")
+    amount_cents = req.get("amount_cents")
+    contributor_count = req.get("contributor_count", 1)
+    evidence_ref = req.get("evidence_ref")
+    if not isinstance(contribution_id, str) or not contribution_id.strip():
+        raise ValueError("contribution_id is required")
+    if source not in {"substack_subscription"}:
+        raise ValueError("source is not supported")
+    if not isinstance(amount_cents, int) or amount_cents < 1:
+        raise ValueError("amount_cents must be a positive integer")
+    if not isinstance(contributor_count, int) or contributor_count < 1:
+        raise ValueError("contributor_count must be a positive integer")
+    if not isinstance(evidence_ref, str) or not evidence_ref.strip():
+        raise ValueError("evidence_ref is required")
+    with db() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO mincoin_external_contributions VALUES (?, ?, ?, ?, 'recorded', ?, ?)",
+            (contribution_id, source, amount_cents, contributor_count, evidence_ref, int(time.time())),
+        )
+        row = conn.execute(
+            "SELECT contribution_id, source, amount_cents, contributor_count, status "
+            "FROM mincoin_external_contributions WHERE contribution_id = ?",
+            (contribution_id,),
+        ).fetchone()
+    return dict(row)
 
 
 def record_mincoin_overflow(req: dict) -> dict:
@@ -318,7 +379,9 @@ def reserve_mincoin_amount(contribution_id: str, amount_cents: int) -> None:
             "WHERE status IN ('pending', 'open') AND created_at < ?",
             (now - 24 * 60 * 60,),
         )
-        raised_cents = _paid_mincoin_cents(conn)
+        stripe_raised_cents = _paid_mincoin_cents(conn)
+        external_raised_cents = _external_mincoin_cents(conn)
+        raised_cents = stripe_raised_cents + external_raised_cents
         reserved_cents = conn.execute(
             "SELECT COALESCE(SUM(amount_cents), 0) FROM mincoin_reservations "
             "WHERE status IN ('pending', 'open')"
@@ -478,6 +541,18 @@ class Handler(BaseHTTPRequestHandler):
                 json_response(self, 400, {"error": str(exc)})
             except sqlite3.Error:
                 json_response(self, 409, {"error": "overflow receipt conflicts with an existing record"})
+            return
+        if self.path == "/v1/campaigns/mincoin/external":
+            if not authorized(self):
+                json_response(self, 401, {"error": "service authorization required"})
+                return
+            try:
+                contribution = record_mincoin_external(read_json(self))
+                json_response(self, 201, {"contribution": contribution, "accounting": "external_receipt"})
+            except ValueError as exc:
+                json_response(self, 400, {"error": str(exc)})
+            except sqlite3.Error:
+                json_response(self, 409, {"error": "external contribution conflicts with an existing record"})
             return
         if self.path == "/v1/webhooks/stripe":
             raw = self.rfile.read(int(self.headers.get("Content-Length", "0")))

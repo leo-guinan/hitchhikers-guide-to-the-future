@@ -32,6 +32,7 @@ Routes:
 - protected `POST /v1/checkout/sessions`
 - protected `GET /v1/campaigns/mincoin`
 - protected `POST /v1/campaigns/mincoin/checkout`
+- protected `POST /v1/campaigns/mincoin/external`
 - protected `POST /v1/campaigns/mincoin/overflow`
 - protected `GET /v1/entitlements/{subject_id}`
 - signed `POST /v1/webhooks/stripe`
@@ -39,6 +40,8 @@ Routes:
 The HGF Cloudflare Pages Function at `/api/payments/checkout` is the browser-facing relay. It keeps `PAYMENTS_SERVICE_TOKEN` in a Pages secret and forwards only approved HGF-origin requests to the payment service.
 
 The Mincoin page uses `/api/mincoin/status` and `/api/mincoin/checkout`, which relay to the protected Mincoin routes above. The VPS creates one-time Stripe Checkout Sessions with a buyer-selected USD amount; the verified total is calculated only from signed, paid `checkout.session.completed` events carrying `campaign_id=mincoin`.
+
+The external receipt route records a non-Stripe contribution with a source label, amount, contributor count, and private evidence reference. It is idempotent by `contribution_id`; it contributes to the recorded campaign total and battery, but remains distinguishable from Stripe settlement in the status response.
 
 Crypto transfers to the public receiving addresses cannot be technically shut off by closing the page. A reviewed post-cap transfer is recorded through `/v1/campaigns/mincoin/overflow` as an append-only chain/asset/transaction receipt. It remains outside `raised_cents`; only a verified receipt with an explicit USD valuation source contributes to `overflow_reserve_cents`. Unpriced or merely observed inbound transfers remain visible as `overflow_unpriced_count` until reviewed. No sweep, conversion, refund, custody, or ownership allocation is automated by this route.
 
