@@ -39,7 +39,7 @@ Routes:
 
 The HGF Cloudflare Pages Function at `/api/payments/checkout` is the browser-facing relay. It keeps `PAYMENTS_SERVICE_TOKEN` in a Pages secret and forwards only approved HGF-origin requests to the payment service.
 
-The Mincoin page uses `/api/mincoin/status` and `/api/mincoin/checkout`, which relay to the protected Mincoin routes above. The VPS creates one-time Stripe Checkout Sessions with a buyer-selected USD amount; the verified total is calculated only from signed, paid `checkout.session.completed` events carrying `campaign_id=mincoin`.
+The Mincoin page uses `/api/mincoin/status` and `/api/mincoin/checkout`, which relay to the protected Mincoin routes above. The VPS creates one-time Stripe Checkout Sessions with a buyer-selected USD amount; `stripe_raised_cents` is calculated only from signed, paid `checkout.session.completed` events carrying `campaign_id=mincoin`. The public recorded total can also include explicitly source-labeled external receipts, which remain distinguishable in the status response.
 
 The external receipt route records a non-Stripe contribution with a source label, amount, contributor count, and private evidence reference. It is idempotent by `contribution_id`; it contributes to the recorded campaign total and battery, but remains distinguishable from Stripe settlement in the status response.
 
